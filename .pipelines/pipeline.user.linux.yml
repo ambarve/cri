@@ -23,6 +23,6 @@ build:
       name: 'build'
       command: 'build.sh'
       artifacts:
-        - include:
-          - 'containerd.exe'
-          - 'ctr.exe'
+        - from: 'cdpx-artifacts'
+          include:
+          - '*'
