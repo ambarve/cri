@@ -32,7 +32,7 @@ import (
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/containerd/cri/pkg/annotations"
 	criconfig "github.com/containerd/cri/pkg/config"
@@ -119,6 +119,10 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get sandbox image %q", imageName)
 	}
+	containerdImage, err := c.toContainerdImage(ctx, *image)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get image from containerd %q", image.ID)
+	}
 
 	// If it is not in host network namespace then create a namespace and set the sandbox
 	// handle. NetNSPath in sandbox metadata and NetNS is non empty only for non host network
@@ -169,9 +173,9 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	snapshotterOpt := snapshots.WithLabels(config.Annotations)
 
 	opts := []containerd.NewContainerOpts{
-		containerd.WithImage(image.Image),
+		containerd.WithImage(containerdImage),
 		containerd.WithSnapshotter(c.getDefaultSnapshotterForPlatform(sandboxPlatform)),
-		customopts.WithNewSnapshot(id, image.Image, snapshotterOpt),
+		customopts.WithNewSnapshot(id, containerdImage, snapshotterOpt),
 		containerd.WithContainerLabels(sandboxLabels),
 		containerd.WithContainerExtension(sandboxMetadataExtension, &sandbox.Metadata),
 		containerd.WithSpec(spec),

@@ -25,7 +25,7 @@ import (
 	cni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"

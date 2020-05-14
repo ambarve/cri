@@ -28,6 +28,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/runtime/linux/runctypes"
 	runcoptions "github.com/containerd/containerd/runtime/v2/runc/options"
@@ -38,7 +39,7 @@ import (
 	"github.com/opencontainers/runtime-tools/generate"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	runtimeoptions "github.com/containerd/cri/pkg/api/runtimeoptions/v1"
 	criconfig "github.com/containerd/cri/pkg/config"
@@ -287,6 +288,15 @@ func (c *criService) localResolve(refOrID string) (imagestore.Image, error) {
 		imageID = refOrID
 	}
 	return c.imageStore.Get(imageID)
+}
+
+// toContainerdImage converts an image object in image store to containerd image handler.
+func (c *criService) toContainerdImage(ctx context.Context, image imagestore.Image) (containerd.Image, error) {
+	// image should always have at least one reference.
+	if len(image.References) == 0 {
+		return nil, errors.Errorf("invalid image with no reference %q", image.ID)
+	}
+	return c.client.GetImage(ctx, image.References[0])
 }
 
 // getUserFromImage gets uid or user name of the image user.

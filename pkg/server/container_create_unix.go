@@ -43,7 +43,7 @@ import (
 	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/containerd/cri/pkg/annotations"
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
@@ -118,6 +118,10 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to resolve image %q", config.GetImage().GetImage())
 	}
+	containerdImage, err := c.toContainerdImage(ctx, image)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get image from containerd %q", image.ID)
+	}
 
 	// Run container using the same runtime with sandbox.
 	sandboxInfo, err := sandbox.Container.Info(ctx)
@@ -176,7 +180,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		// the runtime (runc) a chance to modify (e.g. to create mount
 		// points corresponding to spec.Mounts) before making the
 		// rootfs readonly (requested by spec.Root.Readonly).
-		customopts.WithNewSnapshot(id, image.Image),
+		customopts.WithNewSnapshot(id, containerdImage),
 	}
 
 	if len(volumeMounts) > 0 {

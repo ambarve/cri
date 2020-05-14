@@ -108,6 +108,8 @@ type Registry struct {
 	// Auths are registry endpoint to auth config mapping. The registry endpoint must
 	// be a valid url with host specified.
 	Auths map[string]AuthConfig `toml:"auths" json:"auths"`
+	// DisableHTTP2 disables http2 for the image pull resolver.
+	DisableHTTP2 bool `toml:"disable_http2" json:"disableHTTP2"`
 }
 
 // PluginConfig contains toml config related to CRI plugin,

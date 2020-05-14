@@ -34,7 +34,7 @@ import (
 	cioutil "github.com/containerd/cri/pkg/ioutil"
 	cio "github.com/containerd/cri/pkg/server/io"
 	"github.com/containerd/cri/pkg/util"
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 // ExecSync executes a command in the container, and returns the stdout output.
