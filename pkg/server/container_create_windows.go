@@ -39,7 +39,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	"github.com/containerd/cri/pkg/annotations"
 	criconfig "github.com/containerd/cri/pkg/config"
@@ -99,6 +99,10 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	image, err := c.localResolve(config.GetImage().GetImage())
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to resolve image %q", config.GetImage().GetImage())
+	}
+	containerdImage, err := c.toContainerdImage(ctx, image)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get image from containerd %q", image.ID)
 	}
 
 	// Run container using the same runtime with sandbox.
@@ -173,7 +177,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	// Set snapshotter before any other options.
 	opts := []containerd.NewContainerOpts{
 		containerd.WithSnapshotter(c.getDefaultSnapshotterForPlatform(sandboxPlatform)),
-		customopts.WithNewSnapshot(id, image.Image, snapshotterOpt),
+		customopts.WithNewSnapshot(id, containerdImage, snapshotterOpt),
 	}
 
 	meta.ImageRef = image.ID
@@ -494,10 +498,6 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 		}
 
 		setOCINamespaces(&g, securityContext.GetNamespaceOptions(), sandboxPid)
-
-		// hyperv pci devices are exposed as windows devices on the container spec
-		// given to hcsshim. currently this is only supported on LCOW.
-		addOCIWindowsDevices(&g, config.Devices)
 	} else {
 		resources := config.GetWindows().GetResources()
 		if resources != nil {
@@ -511,26 +511,55 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			})
 			g.SetWindowsResourcesMemoryLimit(uint64(resources.GetMemoryLimitInBytes()))
 		}
-		username := config.GetWindows().GetSecurityContext().GetRunAsUsername()
-		if username != "" {
-			g.SetProcessUsername(username)
+
+		securityContext := config.GetWindows().GetSecurityContext()
+		if securityContext != nil {
+			username := securityContext.GetRunAsUsername()
+			if username != "" {
+				g.SetProcessUsername(username)
+			}
+			cs := securityContext.GetCredentialSpec()
+			if cs != "" {
+				g.Config.Windows.CredentialSpec = cs
+			}
 		}
+	}
+
+	// For both LCOW and WCOW, devices are passed through from the host to the
+	// container via the OCI Windows.Devices field
+	if err := addOCIWindowsDevices(&g, config.Devices); err != nil {
+		return nil, err
 	}
 
 	return g.Config, nil
 }
 
-func addOCIWindowsDevices(g *generator, devs []*runtime.Device) {
-	for _, device := range devs {
-		if strings.HasPrefix(device.HostPath, "gpu://") {
-			gpuID := strings.TrimPrefix(device.HostPath, "gpu://")
-			gpuDevice := runtimespec.WindowsDevice{
-				ID:     gpuID,
-				IDType: "gpu",
-			}
-			g.Config.Windows.Devices = append(g.Config.Windows.Devices, gpuDevice)
-		}
+// getWindowsDeviceInfo is a helper function that returns a spec specified device's
+// prefix and device identifier. A prefix is any string before "://" in the spec
+// device's `HostPath`.
+func getWindowsDeviceInfo(hostPath string) (string, string, error) {
+	substrings := strings.SplitN(hostPath, "://", 2)
+	if len(substrings) <= 1 {
+		return "", "", fmt.Errorf("failed to parse device information for %s", hostPath)
 	}
+	return substrings[0], substrings[1], nil
+}
+
+// addOCIWindowsDevices parses the devices field on the spec and creates corresponding
+// `WindowsDevice` on the container config if valid.
+func addOCIWindowsDevices(g *generator, devs []*runtime.Device) error {
+	for _, device := range devs {
+		prefix, deviceIdentifier, err := getWindowsDeviceInfo(device.HostPath)
+		if err != nil {
+			return err
+		}
+		device := runtimespec.WindowsDevice{
+			ID:     deviceIdentifier,
+			IDType: prefix,
+		}
+		g.Config.Windows.Devices = append(g.Config.Windows.Devices, device)
+	}
+	return nil
 }
 
 // setOCIDevicesPrivileged set device mapping with privilege.

@@ -21,7 +21,7 @@ package server
 import (
 	"strings"
 
-	runtime "k8s.io/kubernetes/pkg/kubelet/apis/cri/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 type Isolation string
