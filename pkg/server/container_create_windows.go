@@ -512,17 +512,19 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			g.SetWindowsResourcesMemoryLimit(uint64(resources.GetMemoryLimitInBytes()))
 		}
 
+		username := imageConfig.User
 		securityContext := config.GetWindows().GetSecurityContext()
 		if securityContext != nil {
-			username := securityContext.GetRunAsUsername()
-			if username != "" {
-				g.SetProcessUsername(username)
+			runAsUser := securityContext.GetRunAsUsername()
+			if runAsUser != "" {
+				username = runAsUser
 			}
 			cs := securityContext.GetCredentialSpec()
 			if cs != "" {
 				g.Config.Windows.CredentialSpec = cs
 			}
 		}
+		g.SetProcessUsername(username)
 	}
 
 	// For both LCOW and WCOW, devices are passed through from the host to the
