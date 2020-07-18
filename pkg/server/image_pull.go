@@ -17,7 +17,6 @@ limitations under the License.
 package server
 
 import (
-	"crypto/tls"
 	"encoding/base64"
 	"fmt"
 	"net/http"
@@ -256,12 +255,6 @@ func (c *criService) getResolver(ctx context.Context, ref string, cred func(stri
 	if err != nil {
 		return nil, imagespec.Descriptor{}, errors.Wrap(err, "parse image reference")
 	}
-	client := &http.Client{CheckRedirect: checkRedirecter(ctx)}
-	if c.config.Registry.DisableHTTP2 {
-		transport := http.DefaultTransport.(*http.Transport).Clone()
-		transport.TLSNextProto = make(map[string]func(authority string, c *tls.Conn) http.RoundTripper)
-		client.Transport = transport
-	}
 	// Try mirrors in order first, and then try default host name.
 	for _, e := range c.config.Registry.Mirrors[refspec.Hostname()].Endpoints {
 		u, err := url.Parse(e)
@@ -269,8 +262,8 @@ func (c *criService) getResolver(ctx context.Context, ref string, cred func(stri
 			return nil, imagespec.Descriptor{}, errors.Wrapf(err, "parse registry endpoint %q", e)
 		}
 		resolver := docker.NewResolver(docker.ResolverOptions{
-			Authorizer: docker.NewAuthorizer(client, cred),
-			Client:     client,
+			Authorizer: docker.NewAuthorizer(http.DefaultClient, cred),
+			Client:     http.DefaultClient,
 			Host:       func(string) (string, error) { return u.Host, nil },
 			// By default use "https".
 			PlainHTTP: u.Scheme == "http",
@@ -280,6 +273,9 @@ func (c *criService) getResolver(ctx context.Context, ref string, cred func(stri
 			return resolver, desc, nil
 		}
 		// Continue to try next endpoint
+	}
+	client := &http.Client{
+		CheckRedirect: checkRedirecter(ctx),
 	}
 	resolver := docker.NewResolver(docker.ResolverOptions{
 		Credentials: cred,
