@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	osruntime "runtime"
 	"time"
@@ -114,6 +115,16 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 		sandboxNameIndex:   registrar.NewRegistrar(),
 		containerNameIndex: registrar.NewRegistrar(),
 		initialized:        atomic.NewBool(false),
+	}
+
+	if c.config.DisableHTTP2Client {
+		env := "http2client=0"
+		if current := os.Getenv("GODEBUG"); current != "" {
+			env = current + "," + env
+		}
+		if err := os.Setenv("GODEBUG", env); err != nil {
+			return nil, errors.Wrap(err, "failed to set GODEBUG environment variable")
+		}
 	}
 
 	c.apparmorEnabled = isApparmorEnabled() && !config.DisableApparmor

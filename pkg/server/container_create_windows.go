@@ -368,11 +368,12 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 				return nil, errors.Errorf(`sandbox://' mounts are only supported for LCOW`, src)
 			}
 			mountType = "bind"
-		} else if strings.Contains(src, "kubernetes.io~empty-dir") {
-			if sandboxPlatform != "linux/amd64" {
-				return nil, errors.Errorf(`kubernetes.io~empty-dir mounts are only supported for LCOW`, src)
-			}
-
+		} else if strings.Contains(src, "kubernetes.io~empty-dir") && sandboxPlatform == "linux/amd64" {
+			// kubernetes.io~empty-dir in the mount path indicates it comes from the kubernetes
+			// empty-dir plugin, which creates an empty scratch directory to be shared between
+			// containers in a pod. For LCOW, we special case this support and actually create
+			// our own directory inside the UVM. For WCOW, we want to skip this conditional branch
+			// entirely, and just treat the mount like a normal directory mount.
 			subpaths := strings.SplitAfter(src, "kubernetes.io~empty-dir")
 			if len(subpaths) < 2 {
 				return nil, errors.Errorf("emptyDir %s must specify a source path", src)
@@ -512,17 +513,19 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			g.SetWindowsResourcesMemoryLimit(uint64(resources.GetMemoryLimitInBytes()))
 		}
 
+		username := imageConfig.User
 		securityContext := config.GetWindows().GetSecurityContext()
 		if securityContext != nil {
-			username := securityContext.GetRunAsUsername()
-			if username != "" {
-				g.SetProcessUsername(username)
+			runAsUser := securityContext.GetRunAsUsername()
+			if runAsUser != "" {
+				username = runAsUser
 			}
 			cs := securityContext.GetCredentialSpec()
 			if cs != "" {
 				g.Config.Windows.CredentialSpec = cs
 			}
 		}
+		g.SetProcessUsername(username)
 	}
 
 	// For both LCOW and WCOW, devices are passed through from the host to the

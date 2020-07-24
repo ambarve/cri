@@ -108,8 +108,6 @@ type Registry struct {
 	// Auths are registry endpoint to auth config mapping. The registry endpoint must
 	// be a valid url with host specified.
 	Auths map[string]AuthConfig `toml:"auths" json:"auths"`
-	// DisableHTTP2 disables http2 for the image pull resolver.
-	DisableHTTP2 bool `toml:"disable_http2" json:"disableHTTP2"`
 }
 
 // PluginConfig contains toml config related to CRI plugin,
@@ -159,6 +157,8 @@ type PluginConfig struct {
 	//
 	// NOTE: JTERRY75 - This is a hack! DO not submit as the final solution.
 	AutoManageVHDTemplatePath string `toml:"auto_manage_vhd_template_path" json:"autoManageVHDTemplatePath"`
+	// Sets GODEBUG=http2client=0 if enabled.
+	DisableHTTP2Client bool `toml:"disable_http2_client" json:"disableHTTP2Client"`
 }
 
 // X509KeyPairStreaming contains the x509 configuration for streaming
