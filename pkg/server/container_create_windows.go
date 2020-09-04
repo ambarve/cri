@@ -464,7 +464,18 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			if err := setOCIPrivileged(&g, config); err != nil {
 				return nil, err
 			}
+		} else { // not privileged
+			if err := setOCICapabilities(&g, securityContext.GetCapabilities()); err != nil {
+				return nil, errors.Wrapf(err, "failed to set capabilities %+v",
+					securityContext.GetCapabilities())
+			}
 		}
+		// Clear all ambient capabilities. The implication of non-root + caps
+		// is not clearly defined in Kubernetes.
+		// See https://github.com/kubernetes/kubernetes/issues/56374
+		// Keep docker's behavior for now.
+		g.Config.Process.Capabilities.Ambient = []string{}
+
 		userstr, err := generateUserString(
 			securityContext.GetRunAsUsername(),
 			securityContext.GetRunAsUser(),
@@ -528,19 +539,17 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 		g.SetProcessUsername(username)
 	}
 
-	// For both LCOW and WCOW, devices are passed through from the host to the
-	// container via the OCI Windows.Devices field
-	if err := addOCIWindowsDevices(&g, config.Devices); err != nil {
+	if err := addOCIDevices(&g, plat.OS, config.Devices); err != nil {
 		return nil, err
 	}
 
 	return g.Config, nil
 }
 
-// getWindowsDeviceInfo is a helper function that returns a spec specified device's
+// getCRIDeviceInfo is a helper function that returns a spec specified device's
 // prefix and device identifier. A prefix is any string before "://" in the spec
 // device's `HostPath`.
-func getWindowsDeviceInfo(hostPath string) (string, string, error) {
+func getCRIDeviceInfo(hostPath string) (string, string, error) {
 	substrings := strings.SplitN(hostPath, "://", 2)
 	if len(substrings) <= 1 {
 		return "", "", fmt.Errorf("failed to parse device information for %s", hostPath)
@@ -548,19 +557,41 @@ func getWindowsDeviceInfo(hostPath string) (string, string, error) {
 	return substrings[0], substrings[1], nil
 }
 
-// addOCIWindowsDevices parses the devices field on the spec and creates corresponding
-// `WindowsDevice` on the container config if valid.
-func addOCIWindowsDevices(g *generator, devs []*runtime.Device) error {
-	for _, device := range devs {
-		prefix, deviceIdentifier, err := getWindowsDeviceInfo(device.HostPath)
-		if err != nil {
-			return err
+// hasWindowsDevicePrefix returns true if the device's hostPath contains a prefix.
+// A prefix is any string before "://" in the spec device's `HostPath`.
+func hasWindowsDevicePrefix(hostPath string) bool {
+	return strings.Contains(hostPath, "://")
+}
+
+// addOCIDevices converts cri spec devices to `LinuxDevice`s or `WindowsDevice`s
+//
+// If the device's `HostPath` contains a prefix as returned by a call to `getCRIDeviceInfo`,
+// convert the cri device to a `WindowsDevice`. Otherwise, if we're running WCOW, convert
+// the cri device to a `WindowsDevice` with an unknown `IDType`. If we're running LCOW,
+// convert the cri device to a skeleton `LinuxDevice` where the remaining fields
+// must be filled out in the GCS.
+func addOCIDevices(g *generator, OS string, devices []*runtime.Device) error {
+	for _, dev := range devices {
+		if hasWindowsDevicePrefix(dev.HostPath) {
+			// handle as a WindowsDevice with known type
+			prefix, identifier, err := getCRIDeviceInfo(dev.HostPath)
+			if err != nil {
+				return err
+			}
+			device := runtimespec.WindowsDevice{
+				ID:     identifier,
+				IDType: prefix,
+			}
+			g.Config.Windows.Devices = append(g.Config.Windows.Devices, device)
+		} else if OS == "linux" {
+			// handle as a LinuxDevice, ignore cri device's `ContainerPath`
+			rd := runtimespec.LinuxDevice{
+				Path: dev.HostPath,
+			}
+			g.AddDevice(rd)
+		} else {
+			return fmt.Errorf("could not convert device %v into a spec device. OS: %s", dev, OS)
 		}
-		device := runtimespec.WindowsDevice{
-			ID:     deviceIdentifier,
-			IDType: prefix,
-		}
-		g.Config.Windows.Devices = append(g.Config.Windows.Devices, device)
 	}
 	return nil
 }

@@ -37,10 +37,8 @@ import (
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/opencontainers/runc/libcontainer/devices"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/opencontainers/runtime-tools/validate"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
-	"github.com/syndtr/gocapability/capability"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
@@ -693,98 +691,6 @@ func (c *criService) addOCIBindMounts(g *generator, mounts []*runtime.Mount, mou
 		})
 	}
 
-	return nil
-}
-
-// getOCICapabilitiesList returns a list of all available capabilities.
-func getOCICapabilitiesList() []string {
-	var caps []string
-	for _, cap := range capability.List() {
-		if cap > validate.LastCap() {
-			continue
-		}
-		caps = append(caps, "CAP_"+strings.ToUpper(cap.String()))
-	}
-	return caps
-}
-
-// Adds capabilities to all sets relevant to root (bounding, permitted, effective, inheritable)
-func addProcessRootCapability(g *generator, c string) error {
-	if err := g.AddProcessCapabilityBounding(c); err != nil {
-		return err
-	}
-	if err := g.AddProcessCapabilityPermitted(c); err != nil {
-		return err
-	}
-	if err := g.AddProcessCapabilityEffective(c); err != nil {
-		return err
-	}
-	if err := g.AddProcessCapabilityInheritable(c); err != nil {
-		return err
-	}
-	return nil
-}
-
-// Drops capabilities to all sets relevant to root (bounding, permitted, effective, inheritable)
-func dropProcessRootCapability(g *generator, c string) error {
-	if err := g.DropProcessCapabilityBounding(c); err != nil {
-		return err
-	}
-	if err := g.DropProcessCapabilityPermitted(c); err != nil {
-		return err
-	}
-	if err := g.DropProcessCapabilityEffective(c); err != nil {
-		return err
-	}
-	if err := g.DropProcessCapabilityInheritable(c); err != nil {
-		return err
-	}
-	return nil
-}
-
-// setOCICapabilities adds/drops process capabilities.
-func setOCICapabilities(g *generator, capabilities *runtime.Capability) error {
-	if capabilities == nil {
-		return nil
-	}
-
-	// Add/drop all capabilities if "all" is specified, so that
-	// following individual add/drop could still work. E.g.
-	// AddCapabilities: []string{"ALL"}, DropCapabilities: []string{"CHOWN"}
-	// will be all capabilities without `CAP_CHOWN`.
-	if util.InStringSlice(capabilities.GetAddCapabilities(), "ALL") {
-		for _, c := range getOCICapabilitiesList() {
-			if err := addProcessRootCapability(g, c); err != nil {
-				return err
-			}
-		}
-	}
-	if util.InStringSlice(capabilities.GetDropCapabilities(), "ALL") {
-		for _, c := range getOCICapabilitiesList() {
-			if err := dropProcessRootCapability(g, c); err != nil {
-				return err
-			}
-		}
-	}
-
-	for _, c := range capabilities.GetAddCapabilities() {
-		if strings.ToUpper(c) == "ALL" {
-			continue
-		}
-		// Capabilities in CRI doesn't have `CAP_` prefix, so add it.
-		if err := addProcessRootCapability(g, "CAP_"+strings.ToUpper(c)); err != nil {
-			return err
-		}
-	}
-
-	for _, c := range capabilities.GetDropCapabilities() {
-		if strings.ToUpper(c) == "ALL" {
-			continue
-		}
-		if err := dropProcessRootCapability(g, "CAP_"+strings.ToUpper(c)); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
