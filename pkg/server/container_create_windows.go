@@ -356,7 +356,7 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			options = append(options, "rw")
 		}
 
-		if strings.HasPrefix(src, `\\.\PHYSICALDRIVE`) {
+		if strings.HasPrefix(strings.ToUpper(src), `\\.\PHYSICALDRIVE`) {
 			mountType = "physical-disk"
 		} else if strings.HasPrefix(src, `\\.\pipe`) {
 			if plat.OS == "linux" {
