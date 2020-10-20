@@ -39,6 +39,15 @@ func (c *criService) StopPodSandbox(ctx context.Context, r *runtime.StopPodSandb
 		return nil, errors.Wrapf(err, "an error occurred when try to find sandbox %q",
 			r.GetPodSandboxId())
 	}
+
+	if err := c.stopPodSandbox(ctx, sandbox); err != nil {
+		return nil, err
+	}
+
+	return &runtime.StopPodSandboxResponse{}, nil
+}
+
+func (c *criService) stopPodSandbox(ctx context.Context, sandbox sandboxstore.Sandbox) error {
 	// Use the full sandbox id.
 	id := sandbox.ID
 
@@ -52,28 +61,28 @@ func (c *criService) StopPodSandbox(ctx context.Context, r *runtime.StopPodSandb
 		}
 		// Forcibly stop the container. Do not use `StopContainer`, because it introduces a race
 		// if a container is removed after list.
-		if err = c.stopContainer(ctx, container, 0); err != nil {
-			return nil, errors.Wrapf(err, "failed to stop container %q", container.ID)
+		if err := c.stopContainer(ctx, container, 0); err != nil {
+			return errors.Wrapf(err, "failed to stop container %q", container.ID)
 		}
 	}
 
 	if err := c.unmountSandboxFiles(id, sandbox.Config); err != nil {
-		return nil, errors.Wrap(err, "failed to unmount sandbox files")
+		return errors.Wrap(err, "failed to unmount sandbox files")
 	}
 
 	// Only stop sandbox container when it's running or unknown.
 	state := sandbox.Status.Get().State
 	if state == sandboxstore.StateReady || state == sandboxstore.StateUnknown {
 		if err := c.stopSandboxContainer(ctx, sandbox); err != nil {
-			return nil, errors.Wrapf(err, "failed to stop sandbox container %q in %q state", id, state)
+			return errors.Wrapf(err, "failed to stop sandbox container %q in %q state", id, state)
 		}
 	}
 
 	if err := c.doStopPodSandbox(ctx, id, sandbox); err != nil {
-		return nil, err
+		return err
 	}
 
-	return &runtime.StopPodSandboxResponse{}, nil
+	return nil
 }
 
 // stopSandboxContainer kills the sandbox container.
