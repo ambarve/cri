@@ -118,6 +118,13 @@ func initFunc(ic *plugin.InitContext) (interface{}, error) {
 			l.monitor.Monitor(t)
 		}
 	}
+	v2Tasks, err := l.v2Runtime.Tasks(ic.Context, true)
+	if err != nil {
+		return nil, err
+	}
+	for _, t := range v2Tasks {
+		l.monitor.Monitor(t)
+	}
 	return l, nil
 }
 
@@ -183,6 +190,11 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 			Source:  m.Source,
 			Options: m.Options,
 		})
+	}
+	if strings.HasPrefix(container.Runtime.Name, "io.containerd.runtime.v1.") {
+		log.G(ctx).Warn("runtime v1 is deprecated since containerd v1.4, consider using runtime v2")
+	} else if container.Runtime.Name == plugin.RuntimeRuncV1 {
+		log.G(ctx).Warnf("%q is deprecated since containerd v1.4, consider using %q", plugin.RuntimeRuncV1, plugin.RuntimeRuncV2)
 	}
 	rtime, err := l.getRuntime(container.Runtime.Name)
 	if err != nil {
