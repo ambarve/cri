@@ -25,7 +25,9 @@ import (
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/validate"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"github.com/syndtr/gocapability/capability"
+	"golang.org/x/sys/windows"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	containerstore "github.com/containerd/cri/pkg/store/container"
@@ -39,24 +41,73 @@ func init() {
 
 // setOCIProcessArgs sets process args. It returns error if the final arg list
 // is empty.
-func setOCIProcessArgs(g *generator, config *runtime.ContainerConfig, imageConfig *imagespec.ImageConfig) error {
+func setOCIProcessArgs(g *generator, config *runtime.ContainerConfig, image *imagespec.Image) error {
 	command, args := config.GetCommand(), config.GetArgs()
 	// The following logic is migrated from https://github.com/moby/moby/blob/master/daemon/commit.go
 	// TODO(random-liu): Clearly define the commands overwrite behavior.
 	if len(command) == 0 {
 		// Copy array to avoid data race.
 		if len(args) == 0 {
-			args = append([]string{}, imageConfig.Cmd...)
+			args = append([]string{}, image.Config.Cmd...)
 		}
 		if command == nil {
-			command = append([]string{}, imageConfig.Entrypoint...)
+			command = append([]string{}, image.Config.Entrypoint...)
 		}
 	}
 	if len(command) == 0 && len(args) == 0 {
 		return errors.New("no command specified")
 	}
-	g.SetProcessArgs(append(command, args...))
+	var ignoreArgsEscaped bool
+	if ignoreArgsEscapedAnno, ok := config.Annotations["microsoft.io/ignore-args-escaped"]; ok {
+		ignoreArgsEscaped = ignoreArgsEscapedAnno == "true"
+	}
+	setProcessArgs(g, image.OS == "windows", image.Config.ArgsEscaped && !ignoreArgsEscaped, append(command, args...))
 	return nil
+}
+
+// setProcessArgs sets either g.Config.Process.CommandLine or g.Config.Process.Args.
+// This is forked from g.SetProcessArgs to add argsEscaped support.
+func setProcessArgs(g *generator, isWindows bool, argsEscaped bool, args []string) {
+	logrus.WithFields(logrus.Fields{
+		"isWindows":   isWindows,
+		"argsEscaped": argsEscaped,
+		"args":        args,
+	}).Info("Setting process args on OCI spec")
+	if g.Config == nil {
+		g.Config = &runtimespec.Spec{}
+	}
+	if g.Config.Process == nil {
+		g.Config.Process = &runtimespec.Process{}
+	}
+
+	if isWindows && argsEscaped {
+		// argsEscaped is used for Windows containers to indicate that the command line should be
+		// used from args[0] without escaping. This case seems to mostly result from use of
+		// shell-form ENTRYPOINT or CMD in the Dockerfile. argsEscaped is a non-standard OCI
+		// extension but we are using it here to support Docker images that rely on it. In the
+		// future we should move to some properly standardized support in upstream OCI.
+		// This logic is taken from https://github.com/moby/moby/blob/24f173a003727611aa482a55b812e0e39c67be65/daemon/oci_windows.go#L244
+		//
+		// Note: The approach taken here causes ArgsEscaped to change how commands passed directly
+		// via CRI are interpreted as well. However, this actually matches with Docker's behavior
+		// regarding commands specified at container create time, and seems non-trivial to fix,
+		// so going to leave this way for now.
+		g.Config.Process.CommandLine = args[0]
+		if len(args[1:]) > 0 {
+			g.Config.Process.CommandLine += " " + escapeArgs(args[1:])
+		}
+	} else {
+		g.Config.Process.Args = args
+	}
+}
+
+// escapeArgs makes a Windows-style escaped command line from a set of arguments
+func escapeArgs(args []string) string {
+	escapedArgs := make([]string, len(args))
+	for i, a := range args {
+		escapedArgs[i] = windows.EscapeArg(a)
+	}
+	return strings.Join(escapedArgs, " ")
 }
 
 // addImageEnvs adds environment variables from image config. It returns error if

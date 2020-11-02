@@ -48,6 +48,11 @@ type ImageConfig struct {
 
 	// StopSignal contains the system call signal that will be sent to the container to exit.
 	StopSignal string `json:"StopSignal,omitempty"`
+
+	// ArgsEscaped is a non-standard extension that was introduced by Docker. It is used for
+	// Windows images to indicate that the command has already been escaped and should be
+	// used directly as the command line.
+	ArgsEscaped bool `json:"ArgsEscaped,omitempty"`
 }
 
 // RootFS describes a layer content addresses
