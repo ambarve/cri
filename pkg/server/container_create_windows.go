@@ -20,7 +20,6 @@ package server
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -37,7 +36,6 @@ import (
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
@@ -164,11 +162,6 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to generate container %q spec", id)
 	}
-	defer func() {
-		if retErr != nil {
-			cleanupAutomanageVhdFiles(ctx, id, sandboxID, config)
-		}
-	}()
 
 	log.G(ctx).Debugf("Container %q spec: %#+v", id, spew.NewFormatter(spec))
 
@@ -252,6 +245,21 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	return &runtime.CreateContainerResponse{ContainerId: id}, nil
 }
 
+// removeMount removes the mount with given destination inside the spec.
+func removeMount(s *runtimespec.Spec, dest string) {
+	var (
+		mounts  []runtimespec.Mount
+		current = s.Mounts
+	)
+	for _, m := range current {
+		if m.Destination == dest {
+			continue
+		}
+		mounts = append(mounts, m)
+	}
+	s.Mounts = mounts
+}
+
 func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxPid uint32, netnsPath string, config *runtime.ContainerConfig,
 	sandboxConfig *runtime.PodSandboxConfig, sandboxPlatform string, image *imagespec.Image) (*runtimespec.Spec, error) {
 	// Creates a spec Generator with the default spec.
@@ -264,6 +272,8 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 	if plat.OS == "linux" {
 		// Remove default rlimits (See issue #515)
 		spec.Process.Rlimits = nil
+		// Remove default /run mount. This matches upstream behavior.
+		removeMount(spec, "/run")
 	}
 	g := newSpecGenerator(spec)
 
@@ -315,7 +325,6 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 	g.AddAnnotation(annotations.SandboxID, sandboxID)
 
 	// Add OCI Mounts
-	automanageVhdIndex := 0
 	for _, m := range config.GetMounts() {
 		src := m.HostPath
 		var destination string
@@ -382,38 +391,6 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			mountType = "bind"
 			formattedSource := subpaths[1]
 			src = fmt.Sprintf("sandbox://%s", formattedSource)
-		} else if strings.HasPrefix(src, "automanage-vhd://") {
-			formattedSource, err := filepath.EvalSymlinks(strings.TrimPrefix(src, "automanage-vhd://"))
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to EvalSymlinks automanage-vhd:// mount.HostPath %q", src)
-			}
-			s, err := c.os.Stat(formattedSource)
-			if err != nil {
-				return nil, errors.Wrapf(err, "failed to Stat automanage-vhd:// mount.HostPath %q", formattedSource)
-			}
-			if s.IsDir() {
-				// TODO: JTERRY75 - This is a hack and needs to be removed. The
-				// orchestrator should be controlling the entry host path. For
-				// now if its a directory copy the template vhd and update the
-				// source.
-				if c.config.PluginConfig.AutoManageVHDTemplatePath == "" {
-					return nil, errors.New("automange-vhd:// prefix is not supported with no 'AutoManageVHDTemplatePath' in config")
-				}
-				formattedSource = filepath.Join(formattedSource, fmt.Sprintf("%s-%s.%d.vhdx", sandboxID, id, automanageVhdIndex))
-				if err := c.os.CopyFile(c.config.PluginConfig.AutoManageVHDTemplatePath, formattedSource, 0); err != nil {
-					return nil, errors.Wrapf(err, "failed to copy automanage-vhd:// from %q to %q", c.config.PluginConfig.AutoManageVHDTemplatePath, formattedSource)
-				}
-				// increment our automanage index so source generated paths
-				// don't collide.
-				automanageVhdIndex++
-			} else {
-				ext := strings.ToLower(filepath.Ext(formattedSource))
-				if ext != ".vhd" && ext != ".vhdx" {
-					return nil, errors.Errorf("automanage-vhd:// prefix MUST have .vhd or .vhdx extension found: %q", ext)
-				}
-			}
-			src = formattedSource
-			mountType = "automanage-virtual-disk"
 		} else if strings.HasPrefix(src, "vhd://") {
 			formattedSource, err := filepath.EvalSymlinks(strings.TrimPrefix(src, "vhd://"))
 			if err != nil {
@@ -603,42 +580,4 @@ func setOCIDevicesPrivileged(g *generator) error {
 	// list itself.
 	g.AddAnnotation("io.microsoft.virtualmachine.lcow.privileged", "true")
 	return nil
-}
-
-// cleanupAutomanageVhdFiles is used to remove any automanage-vhd:// HostPaths
-// that were created as part of the ContainerCreate call that resulted in a
-// failure. This is because the expectation of the mount is that it will be
-// controlled in the lifetime of the shim that owns the container but if the
-// container fails activation it is unclear what stage that may have happened.
-// So only CRI can clean up the file copies that it did.
-func cleanupAutomanageVhdFiles(ctx context.Context, id, sandboxID string, config *runtime.ContainerConfig) {
-	automanageVhdIndex := 0
-	for _, m := range config.GetMounts() {
-		if strings.HasPrefix(m.HostPath, "automanage-vhd://") {
-			if formattedSource, err := filepath.EvalSymlinks(strings.TrimPrefix(m.HostPath, "automanage-vhd://")); err != nil {
-				log.G(ctx).WithFields(logrus.Fields{
-					"path":          m.HostPath,
-					logrus.ErrorKey: err,
-				}).Warn("failed to EvalSymlinks for automanage-vhd://")
-			} else {
-				if s, err := os.Stat(formattedSource); err != nil {
-					log.G(ctx).WithFields(logrus.Fields{
-						"path":          formattedSource,
-						logrus.ErrorKey: err,
-					}).Warn("failed to Stat automanage-vhd://")
-				} else {
-					if s.IsDir() {
-						formattedSource = filepath.Join(formattedSource, fmt.Sprintf("%s-%s.%d.vhdx", sandboxID, id, automanageVhdIndex))
-						automanageVhdIndex++
-					}
-					if err := os.Remove(formattedSource); err != nil && !os.IsNotExist(err) {
-						log.G(ctx).WithFields(logrus.Fields{
-							"path":          formattedSource,
-							logrus.ErrorKey: err,
-						}).Warn("failed to remove automanage-vhd://")
-					}
-				}
-			}
-		}
-	}
 }

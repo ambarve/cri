@@ -151,12 +151,6 @@ type PluginConfig struct {
 	// current OOMScoreADj.
 	// This is useful when the containerd does not have permission to decrease OOMScoreAdj.
 	RestrictOOMScoreAdj bool `toml:"restrict_oom_score_adj" json:"restrictOOMScoreAdj"`
-	// AutoManageVHDTemplatePath is the path on disk to find the source
-	// (template) vhd to copy when a user specifies a mount with a `HostPath:
-	// "automanage-vhd://"` prefix where the `HostPath` is a directory.
-	//
-	// NOTE: JTERRY75 - This is a hack! DO not submit as the final solution.
-	AutoManageVHDTemplatePath string `toml:"auto_manage_vhd_template_path" json:"autoManageVHDTemplatePath"`
 	// Sets GODEBUG=http2client=0 if enabled.
 	DisableHTTP2Client bool `toml:"disable_http2_client" json:"disableHTTP2Client"`
 }
