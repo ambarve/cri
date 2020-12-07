@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/containerd/containerd/platforms"
 	"github.com/opencontainers/selinux/go-selinux"
 	"github.com/opencontainers/selinux/go-selinux/label"
 	"github.com/pkg/errors"
@@ -64,4 +65,8 @@ func checkSelinuxLevel(level string) (bool, error) {
 		return false, errors.Wrapf(err, "the format of 'level' %q is not correct", level)
 	}
 	return true, nil
+}
+
+func (c *criService) getSandboxPlatform(_ string) (string, error) {
+	return platforms.DefaultString(), nil
 }

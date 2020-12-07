@@ -20,10 +20,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containerd/containerd"
 	eventtypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/log"
-	"github.com/docker/docker/pkg/signal"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
@@ -125,11 +125,18 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 				}
 			}
 		}
-		sig, err := signal.ParseSignal(stopSignal)
+
+		sandboxPlatform, err := c.getSandboxPlatform(container.Metadata.SandboxID)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get container's sandbox platform")
+		}
+
+		sig, err := containerd.ParsePlatformSignal(stopSignal, sandboxPlatform)
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse stop signal %q", stopSignal)
 		}
 		log.G(ctx).Infof("Stop container %q with signal %v", id, sig)
+
 		if err = task.Kill(ctx, sig); err != nil && !errdefs.IsNotFound(err) {
 			return errors.Wrapf(err, "failed to stop container %q", id)
 		}

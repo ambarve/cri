@@ -47,8 +47,9 @@ type Client struct {
 	ctx    context.Context
 	closed func()
 
-	closeOnce     sync.Once
-	userCloseFunc func()
+	closeOnce       sync.Once
+	userCloseFunc   func()
+	userCloseWaitCh chan struct{}
 
 	errOnce     sync.Once
 	err         error
@@ -75,14 +76,15 @@ func WithUnaryClientInterceptor(i UnaryClientInterceptor) ClientOpts {
 func NewClient(conn net.Conn, opts ...ClientOpts) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 	c := &Client{
-		codec:         codec{},
-		conn:          conn,
-		channel:       newChannel(conn),
-		calls:         make(chan *callRequest),
-		closed:        cancel,
-		ctx:           ctx,
-		userCloseFunc: func() {},
-		interceptor:   defaultClientInterceptor,
+		codec:           codec{},
+		conn:            conn,
+		channel:         newChannel(conn),
+		calls:           make(chan *callRequest),
+		closed:          cancel,
+		ctx:             ctx,
+		userCloseFunc:   func() {},
+		userCloseWaitCh: make(chan struct{}),
+		interceptor:     defaultClientInterceptor,
 	}
 
 	for _, o := range opts {
@@ -175,6 +177,17 @@ func (c *Client) Close() error {
 	return nil
 }
 
+// UserOnCloseWait is used to blocks untils the user's on-close callback
+// finishes.
+func (c *Client) UserOnCloseWait(ctx context.Context) error {
+	select {
+	case <-c.userCloseWaitCh:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 type message struct {
 	messageHeader
 	p   []byte
@@ -221,13 +234,19 @@ func (r *receiver) run(ctx context.Context, c *channel) {
 }
 
 func (c *Client) run() {
+	type streamCall struct {
+		streamID uint32
+		call     *callRequest
+	}
 	var (
-		streamID      uint32 = 1
-		waiters              = make(map[uint32]*callRequest)
-		calls                = c.calls
-		incoming             = make(chan *message)
-		receiversDone        = make(chan struct{})
-		wg            sync.WaitGroup
+		streamID       uint32 = 1
+		waiters               = make(map[uint32]*callRequest)
+		calls                 = c.calls
+		requests              = make(chan streamCall)
+		requestsFailed        = make(chan streamCall)
+		incoming              = make(chan *message)
+		receiversDone         = make(chan struct{})
+		wg             sync.WaitGroup
 	)
 
 	// broadcast the shutdown error to the remaining waiters.
@@ -248,21 +267,41 @@ func (c *Client) run() {
 	}()
 	go recv.run(c.ctx, c.channel)
 
+	go func(ctx context.Context) {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case streamCall := <-requests:
+				if err := c.send(streamCall.streamID, messageTypeRequest, streamCall.call.req); err != nil {
+					streamCall.call.errs <- err // errs is buffered so should not block.
+					requestsFailed <- streamCall
+					continue
+				}
+			}
+		}
+	}(c.ctx)
+
 	defer func() {
 		c.conn.Close()
 		c.userCloseFunc()
+		close(c.userCloseWaitCh)
 	}()
 
 	for {
 		select {
 		case call := <-calls:
-			if err := c.send(streamID, messageTypeRequest, call.req); err != nil {
-				call.errs <- err
-				continue
-			}
-
+			go func(streamID uint32, call *callRequest) {
+				requests <- streamCall{
+					streamID: streamID,
+					call:     call,
+				}
+			}(streamID, call)
 			waiters[streamID] = call
 			streamID += 2 // enforce odd client initiated request ids
+		case streamCall := <-requestsFailed:
+			// Sending the request failed, so stop tracking this stream ID.
+			delete(waiters, streamCall.streamID)
 		case msg := <-incoming:
 			call, ok := waiters[msg.StreamID]
 			if !ok {
@@ -338,9 +377,13 @@ func filterCloseErr(err error) error {
 	case strings.Contains(err.Error(), "use of closed network connection"):
 		return ErrClosed
 	default:
-		// if we have an epipe on a write, we cast to errclosed
-		if oerr, ok := err.(*net.OpError); ok && oerr.Op == "write" {
-			if serr, ok := oerr.Err.(*os.SyscallError); ok && serr.Err == syscall.EPIPE {
+		// if we have an epipe on a write or econnreset on a read , we cast to errclosed
+		var oerr *net.OpError
+		if errors.As(err, &oerr) && (oerr.Op == "write" || oerr.Op == "read") {
+			serr, sok := oerr.Err.(*os.SyscallError)
+			if sok && ((serr.Err == syscall.EPIPE && oerr.Op == "write") ||
+				(serr.Err == syscall.ECONNRESET && oerr.Op == "read")) {
+
 				return ErrClosed
 			}
 		}
