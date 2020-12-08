@@ -292,9 +292,13 @@ func (c *Client) run() {
 		select {
 		case call := <-calls:
 			go func(streamID uint32, call *callRequest) {
-				requests <- streamCall{
+				sc := streamCall{
 					streamID: streamID,
 					call:     call,
+				}
+				select {
+				case <-c.ctx.Done():
+				case requests <- sc:
 				}
 			}(streamID, call)
 			waiters[streamID] = call
