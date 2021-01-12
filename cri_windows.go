@@ -24,8 +24,15 @@ import (
 )
 
 func getPlatforms() []imagespec.Platform {
-	return []imagespec.Platform{platforms.DefaultSpec(), {
-		OS:           "linux",
-		Architecture: "amd64",
-	}}
+	return []imagespec.Platform{
+		platforms.DefaultSpec(),
+		{
+			OS:           "linux",
+			Architecture: "amd64",
+		},
+		{
+			OS:           "linux",
+			Architecture: "386",
+		},
+	}
 }
