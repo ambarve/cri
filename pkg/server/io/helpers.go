@@ -92,3 +92,13 @@ type stdioPipes struct {
 	stdout io.ReadCloser
 	stderr io.ReadCloser
 }
+
+func newEmptyPipes() (*stdioPipes, *wgCloser) {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &stdioPipes{}, &wgCloser{
+		wg:     &sync.WaitGroup{},
+		set:    []io.Closer{},
+		ctx:    ctx,
+		cancel: cancel,
+	}
+}

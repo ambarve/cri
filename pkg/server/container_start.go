@@ -18,6 +18,7 @@ package server
 
 import (
 	"io"
+	"net/url"
 	"time"
 
 	"github.com/containerd/containerd"
@@ -176,8 +177,12 @@ func resetContainerStarting(container containerstore.Container) error {
 
 // createContainerLoggers creates container loggers and return write closer for stdout and stderr.
 func (c *criService) createContainerLoggers(logPath string, tty bool) (stdout io.WriteCloser, stderr io.WriteCloser, err error) {
-	if logPath != "" {
-		// Only generate container log when log path is specified.
+	u, err := url.Parse(logPath)
+	// logPath still can be an absolute path like: "C:\\path\\to\\log\\file.txt"
+	if logPath == "" || (err == nil && u.Scheme == "binary") {
+		stdout, stderr = cio.NewDiscardLogger(), cio.NewDiscardLogger()
+	} else {
+		// Only generate container log when log path is specified and it does not contain a "binary" URL scheme
 		f, err := openContainerOutputFile(logPath)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "failed to create and open log file")
@@ -204,9 +209,6 @@ func (c *criService) createContainerLoggers(logPath string, tty bool) (stdout io
 			logrus.Debugf("Finish redirecting log file %q, closing it", logPath)
 			f.Close()
 		}()
-	} else {
-		stdout = cio.NewDiscardLogger()
-		stderr = cio.NewDiscardLogger()
 	}
 	return
 }

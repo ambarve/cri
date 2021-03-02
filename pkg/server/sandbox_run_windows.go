@@ -19,6 +19,8 @@ limitations under the License.
 package server
 
 import (
+	"strconv"
+
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
 	"github.com/containerd/containerd"
 	containerdio "github.com/containerd/containerd/cio"
@@ -47,6 +49,9 @@ import (
 // the sandbox is in ready state.
 func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandboxRequest) (_ *runtime.RunPodSandboxResponse, retErr error) {
 	config := r.GetConfig()
+	if config.Annotations == nil {
+		config.Annotations = make(map[string]string)
+	}
 	log.G(ctx).Debugf("Sandbox config %+v", config)
 
 	// Generate unique id and name for the sandbox and reserve the name.
@@ -170,8 +175,22 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	log.G(ctx).Debugf("Sandbox container %q spec: %#+v", id, spew.NewFormatter(spec))
 
 	sandboxLabels := buildLabels(config.Labels, containerKindSandbox)
-	snapshotterOpt := snapshots.WithLabels(config.Annotations)
 
+	if rhcso.DefaultContainerScratchSizeInGb != 0 {
+		size := strconv.FormatInt(int64(rhcso.DefaultContainerScratchSizeInGb), 10)
+		annotationSize, ok := config.Annotations["containerd.io/snapshot/io.microsoft.container.storage.rootfs.size-gb"]
+		if !ok {
+			config.Annotations["containerd.io/snapshot/io.microsoft.container.storage.rootfs.size-gb"] = size
+		} else {
+			log.G(ctx).Debugf("Changing default container scratch size for %s from %s to %s", id, size, annotationSize)
+		}
+	}
+
+	if rhcso.SandboxIsolation == runhcsoptions.Options_HYPERVISOR {
+		config.Annotations["containerd.io/snapshot/io.microsoft.vm.storage.scratch"] = "true"
+	}
+
+	snapshotterOpt := snapshots.WithLabels(config.Annotations)
 	opts := []containerd.NewContainerOpts{
 		containerd.WithImage(containerdImage),
 		containerd.WithSnapshotter(c.getDefaultSnapshotterForPlatform(sandboxPlatform)),

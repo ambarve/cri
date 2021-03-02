@@ -17,12 +17,13 @@ limitations under the License.
 package io
 
 import (
-	"errors"
 	"io"
+	"net/url"
 	"strings"
 	"sync"
 
 	"github.com/containerd/containerd/cio"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 
 	cioutil "github.com/containerd/cri/pkg/ioutil"
@@ -86,13 +87,23 @@ func NewContainerIO(id string, opts ...ContainerIOOpts) (_ *ContainerIO, err err
 	if c.fifos == nil {
 		return nil, errors.New("fifos are not set")
 	}
-	// Create actual fifos.
-	stdio, closer, err := newStdioPipes(c.fifos)
+
+	u, err := url.Parse(c.fifos.Stdout)
 	if err != nil {
 		return nil, err
 	}
-	c.stdioPipes = stdio
-	c.closer = closer
+
+	if u.Scheme == "binary" {
+		c.stdioPipes, c.closer = newEmptyPipes()
+	} else {
+		// Create actual fifos.
+		stdio, closer, err := newStdioPipes(c.fifos)
+		if err != nil {
+			return nil, err
+		}
+		c.stdioPipes = stdio
+		c.closer = closer
+	}
 	return c, nil
 }
 
@@ -104,6 +115,11 @@ func (c *ContainerIO) Config() cio.Config {
 // Pipe creates container fifos and pipe container output
 // to output stream.
 func (c *ContainerIO) Pipe() {
+	// In some cases c.stdout will not be set, e.g. when binary logger is enabled
+	if c.stdout == nil {
+		return
+	}
+
 	wg := c.closer.wg
 	wg.Add(1)
 	go func() {

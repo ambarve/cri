@@ -29,6 +29,7 @@ import (
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/leases"
 	"github.com/containerd/containerd/log"
+	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/services"
 	"github.com/containerd/containerd/snapshots"
@@ -88,6 +89,7 @@ func initCRIService(ic *plugin.InitContext) (interface{}, error) {
 		"",
 		containerd.WithDefaultNamespace(constants.K8sContainerdNamespace),
 		containerd.WithServices(servicesOpts...),
+		containerd.WithDefaultPlatform(platforms.Ordered(getPlatforms()...)),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create containerd client")
