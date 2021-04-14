@@ -26,6 +26,7 @@ import (
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/errdefs"
 	containerdimages "github.com/containerd/containerd/images"
+	"github.com/containerd/containerd/labels"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/reference"
 	"github.com/containerd/containerd/remotes"
@@ -90,20 +91,37 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 	if ref != imageRef {
 		log.G(ctx).Debugf("PullImage using normalized image ref: %q", ref)
 	}
-	resolver, desc, err := c.getResolver(ctx, ref, c.credentials(r.GetAuth()))
+	resolver, _, err := c.getResolver(ctx, ref, c.credentials(r.GetAuth()))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to resolve image %q", ref)
 	}
-	// We have to check schema1 here, because after `Pull`, schema1
-	// image has already been converted.
-	isSchema1 := desc.MediaType == containerdimages.MediaTypeDockerSchema1Manifest
 
-	image, err := c.client.Pull(ctx, ref,
+	var (
+		isSchema1    bool
+		imageHandler containerdimages.HandlerFunc = func(_ context.Context,
+			desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
+			if desc.MediaType == containerdimages.MediaTypeDockerSchema1Manifest {
+				isSchema1 = true
+			}
+			return nil, nil
+		}
+	)
+
+	pullOpts := []containerd.RemoteOpt{
 		containerd.WithSchema1Conversion,
 		containerd.WithResolver(resolver),
 		containerd.WithPullSnapshotter(c.getDefaultSnapshotterForSandbox(r.GetSandboxConfig())),
 		containerd.WithPullUnpack,
-	)
+		containerd.WithPullLabel(imageLabelKey, imageLabelValue),
+		containerd.WithImageHandler(imageHandler),
+	}
+
+	if !c.config.ContainerdConfig.DisableSnapshotAnnotations {
+		pullOpts = append(pullOpts,
+			containerd.WithImageHandlerWrapper(appendInfoHandlerWrapper(ref)))
+	}
+
+	image, err := c.client.Pull(ctx, ref, pullOpts...)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to pull and unpack image %q", ref)
 	}
@@ -325,4 +343,74 @@ func requestFields(req *http.Request) logrus.Fields {
 	}
 
 	return logrus.Fields(fields)
+}
+
+const (
+	// targetRefLabel is a label which contains image reference and will be passed
+	// to snapshotters.
+	targetRefLabel = "containerd.io/snapshot/cri.image-ref"
+	// targetManifestDigestLabel is a label which contains manifest digest and will be passed
+	// to snapshotters.
+	targetManifestDigestLabel = "containerd.io/snapshot/cri.manifest-digest"
+	// targetLayerDigestLabel is a label which contains layer digest and will be passed
+	// to snapshotters.
+	targetLayerDigestLabel = "containerd.io/snapshot/cri.layer-digest"
+	// targetImageLayersLabel is a label which contains layer digests contained in
+	// the target image and will be passed to snapshotters for preparing layers in
+	// parallel. Skipping some layers is allowed and only affects performance.
+	targetImageLayersLabel = "containerd.io/snapshot/cri.image-layers"
+)
+
+// appendInfoHandlerWrapper makes a handler which appends some basic information
+// of images like digests for manifest and their child layers as annotations during unpack.
+// These annotations will be passed to snapshotters as labels. These labels will be
+// used mainly by stargz-based snapshotters for querying image contents from the
+// registry.
+func appendInfoHandlerWrapper(ref string) func(f containerdimages.Handler) containerdimages.Handler {
+	return func(f containerdimages.Handler) containerdimages.Handler {
+		return containerdimages.HandlerFunc(func(ctx context.Context, desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
+			children, err := f.Handle(ctx, desc)
+			if err != nil {
+				return nil, err
+			}
+			switch desc.MediaType {
+			case imagespec.MediaTypeImageManifest, containerdimages.MediaTypeDockerSchema2Manifest:
+				for i := range children {
+					c := &children[i]
+					if containerdimages.IsLayerType(c.MediaType) {
+						if c.Annotations == nil {
+							c.Annotations = make(map[string]string)
+						}
+						c.Annotations[targetRefLabel] = ref
+						c.Annotations[targetLayerDigestLabel] = c.Digest.String()
+						c.Annotations[targetImageLayersLabel] = getLayers(ctx, targetImageLayersLabel, children[i:], labels.Validate)
+						c.Annotations[targetManifestDigestLabel] = desc.Digest.String()
+					}
+				}
+			}
+			return children, nil
+		})
+	}
+}
+
+// getLayers returns comma-separated digests based on the passed list of
+// descriptors. The returned list contains as many digests as possible as well
+// as meets the label validation.
+func getLayers(ctx context.Context, key string, descs []imagespec.Descriptor, validate func(k, v string) error) (layers string) {
+	var item string
+	for _, l := range descs {
+		if containerdimages.IsLayerType(l.MediaType) {
+			item = l.Digest.String()
+			if layers != "" {
+				item = "," + item
+			}
+			// This avoids the label hits the size limitation.
+			if err := validate(key, layers+item); err != nil {
+				log.G(ctx).WithError(err).WithField("label", key).Debugf("%q is omitted in the layers list", l.Digest.String())
+				break
+			}
+			layers += item
+		}
+	}
+	return
 }

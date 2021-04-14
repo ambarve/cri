@@ -68,7 +68,15 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 			return errors.Wrapf(err, "failed to get task for container %q", id)
 		}
 		// Don't return for unknown state, some cleanup needs to be done.
-		if state == runtime.ContainerState_CONTAINER_UNKNOWN {
+		if state == runtime.ContainerState_CONTAINER_UNKNOWN || state == runtime.ContainerState_CONTAINER_RUNNING {
+			// For the container running case we've somehow ended up in a state where the shim is gone but cri
+			// still thinks the container is running. If the task exit event was missed from events.handleContainerExit this
+			// is the likely culprit but a repro of this is hard to pull off. Even in the event of a shim crash task.Wait would return and
+			// update the status, so if this condition is hit it's a myriad of strange behavior probably
+			// related to containerd restart quirks. Update the status to finished and close the container stop channel.
+			if state == runtime.ContainerState_CONTAINER_RUNNING {
+				log.G(ctx).Warn("Cri container state is `Running` but the task can't be found for the container")
+			}
 			return cleanupUnknownContainer(ctx, id, container)
 		}
 		return nil

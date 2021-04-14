@@ -22,6 +22,7 @@ import (
 
 	eventtypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/errdefs"
+	"github.com/containerd/containerd/log"
 	cni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
@@ -78,11 +79,7 @@ func (c *criService) stopPodSandbox(ctx context.Context, sandbox sandboxstore.Sa
 		}
 	}
 
-	if err := c.doStopPodSandbox(ctx, id, sandbox); err != nil {
-		return err
-	}
-
-	return nil
+	return c.doStopPodSandbox(ctx, id, sandbox)
 }
 
 // stopSandboxContainer kills the sandbox container.
@@ -98,7 +95,15 @@ func (c *criService) stopSandboxContainer(ctx context.Context, sandbox sandboxst
 			return errors.Wrap(err, "failed to get sandbox container")
 		}
 		// Don't return for unknown state, some cleanup needs to be done.
-		if state == sandboxstore.StateUnknown {
+		if state == sandboxstore.StateUnknown || state == sandboxstore.StateReady {
+			// For the StateReady case we've somehow ended up in a state where the task is gone but the sandbox is still in a
+			// ready state. If the task exit event was missed from events.handleSandboxExit this is the likely culprit but a repro of
+			// this is hard to pull off. Even in the event of a shim crash task.Wait would return and update the status,
+			// so if this condition is hit it's a myriad of strange behavior probably related to containerd restart quirks.
+			// Simply reuse the logic if the state is unknown to update the status to NotReady so remove goes smoothly.
+			if state == sandboxstore.StateReady {
+				log.G(ctx).Warn("Sandbox container state is `Ready` but the task can't be found for the container")
+			}
 			return cleanupUnknownSandbox(ctx, id, sandbox)
 		}
 		return nil
