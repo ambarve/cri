@@ -1,0 +1,31 @@
+# Build stages shared between Official and Buddy builds.
+# The parent template must include ContainerPlatform/ContainerPlatform repository with "cplat" alias
+
+
+stages:
+  - stage: build_repo
+    jobs:
+
+      - template: .pipelines/templates/build/version.yml@cplat
+
+      - job: build
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: '$(Build.StagingDirectory)'
+        steps:
+          - script: |
+              set -eux
+
+              mkdir -p $OUT_DIR
+
+              go build -o $OUT_DIR github.com/containerd/cri/cmd/containerd
+              go build -o $OUT_DIR github.com/containerd/cri/cmd/ctr
+            env:
+              GOPATH: $(Pipeline.Workspace)/s
+              GOOS: windows
+              OUT_DIR: '$(Build.StagingDirectory)/out'
+
+      - template: .pipelines/templates/build/sign.yml@cplat
+        parameters:
+          parentJob: build
