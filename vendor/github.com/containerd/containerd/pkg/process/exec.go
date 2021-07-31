@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -221,7 +222,7 @@ func (e *execProcess) start(ctx context.Context) (err error) {
 		if err != nil {
 			return errors.Wrap(err, "failed to retrieve console master")
 		}
-		if e.console, err = e.parent.Platform.CopyConsole(ctx, console, e.stdio.Stdin, e.stdio.Stdout, e.stdio.Stderr, &e.wg); err != nil {
+		if e.console, err = e.parent.Platform.CopyConsole(ctx, console, e.id, e.stdio.Stdin, e.stdio.Stdout, e.stdio.Stderr, &e.wg); err != nil {
 			return errors.Wrap(err, "failed to start console copy")
 		}
 	} else {

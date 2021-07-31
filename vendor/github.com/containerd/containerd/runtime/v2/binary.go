@@ -21,11 +21,11 @@ import (
 	"context"
 	"io"
 	"os"
+	"path/filepath"
 	gruntime "runtime"
 	"strings"
 
 	"github.com/Microsoft/hcsshim/pkg/octtrpc"
-	"github.com/containerd/containerd/events/exchange"
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/runtime"
@@ -37,14 +37,20 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func shimBinary(ctx context.Context, bundle *Bundle, runtime, containerdAddress string, containerdTTRPCAddress string, events *exchange.Exchange, rt *runtime.TaskList) *binary {
+type shimBinaryConfig struct {
+	runtime      string
+	address      string
+	ttrpcAddress string
+	schedCore    bool
+}
+
+func shimBinary(bundle *Bundle, config shimBinaryConfig) *binary {
 	return &binary{
 		bundle:                 bundle,
-		runtime:                runtime,
-		containerdAddress:      containerdAddress,
-		containerdTTRPCAddress: containerdTTRPCAddress,
-		events:                 events,
-		rtTasks:                rt,
+		runtime:                config.runtime,
+		containerdAddress:      config.address,
+		containerdTTRPCAddress: config.ttrpcAddress,
+		schedCore:              config.schedCore,
 	}
 }
 
@@ -52,27 +58,29 @@ type binary struct {
 	runtime                string
 	containerdAddress      string
 	containerdTTRPCAddress string
+	schedCore              bool
 	bundle                 *Bundle
-	events                 *exchange.Exchange
-	rtTasks                *runtime.TaskList
 }
 
 func (b *binary) Start(ctx context.Context, opts *types.Any, onClose func()) (_ *shim, err error) {
 	args := []string{"-id", b.bundle.ID}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	switch logrus.GetLevel() {
+	case logrus.DebugLevel, logrus.TraceLevel:
 		args = append(args, "-debug")
 	}
 	args = append(args, "start")
 
 	cmd, err := client.Command(
 		ctx,
-		b.runtime,
-		b.containerdAddress,
-		b.containerdTTRPCAddress,
-		b.bundle.Path,
-		opts,
-		args...,
-	)
+		&client.CommandConfig{
+			Runtime:      b.runtime,
+			Address:      b.containerdAddress,
+			TTRPCAddress: b.containerdTTRPCAddress,
+			Path:         b.bundle.Path,
+			Opts:         opts,
+			Args:         args,
+			SchedCore:    b.schedCore,
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +107,9 @@ func (b *binary) Start(ctx context.Context, opts *types.Any, onClose func()) (_ 
 	go func() {
 		defer f.Close()
 		_, err := io.Copy(os.Stderr, f)
+		// To prevent flood of error messages, the expected error
+		// should be reset, like os.ErrClosed or os.ErrNotExist, which
+		// depends on platform.
 		err = checkCopyShimLogError(ctx, err)
 		if err != nil {
 			log.G(ctx).WithError(err).Error("copy shim log")
@@ -116,37 +127,46 @@ func (b *binary) Start(ctx context.Context, opts *types.Any, onClose func()) (_ 
 	onCloseWithShimLog := func() {
 		onClose()
 		cancelShimLog()
+		f.Close()
+	}
+	// Save runtime binary path for restore.
+	if err := os.WriteFile(filepath.Join(b.bundle.Path, "runtime"), []byte(b.runtime), 0600); err != nil {
+		return nil, err
 	}
 	client := ttrpc.NewClient(conn, ttrpc.WithOnClose(onCloseWithShimLog), ttrpc.WithUnaryClientInterceptor(octtrpc.ClientInterceptor()))
 	return &shim{
-		bundle:  b.bundle,
-		client:  client,
-		task:    task.NewTaskClient(client),
-		events:  b.events,
-		rtTasks: b.rtTasks,
+		bundle: b.bundle,
+		client: client,
 	}, nil
 }
 
 func (b *binary) Delete(ctx context.Context) (*runtime.Exit, error) {
 	log.G(ctx).Info("cleaning up dead shim")
 
-	// Windows cannot delete the current working directory while an
-	// executable is in use with it. For the cleanup case we invoke with the
-	// default work dir and forward the bundle path on the cmdline.
+	// On Windows and FreeBSD, the current working directory of the shim should
+	// not be the bundle path during the delete operation.  Instead, we invoke
+	// with the default work dir and forward the bundle path on the cmdline.
+	// Windows cannot delete the current working directory while an executable
+	// is in use with it. On FreeBSD, fork/exec can fail.
 	var bundlePath string
-	if gruntime.GOOS != "windows" {
+	if gruntime.GOOS != "windows" && gruntime.GOOS != "freebsd" {
 		bundlePath = b.bundle.Path
 	}
 
 	cmd, err := client.Command(ctx,
-		b.runtime,
-		b.containerdAddress,
-		b.containerdTTRPCAddress,
-		bundlePath,
-		nil,
-		"-id", b.bundle.ID,
-		"-bundle", b.bundle.Path,
-		"delete")
+		&client.CommandConfig{
+			Runtime:      b.runtime,
+			Address:      b.containerdAddress,
+			TTRPCAddress: b.containerdTTRPCAddress,
+			Path:         bundlePath,
+			Opts:         nil,
+			Args: []string{
+				"-id", b.bundle.ID,
+				"-bundle", b.bundle.Path,
+				"delete",
+			},
+		})
+
 	if err != nil {
 		return nil, err
 	}
@@ -157,6 +177,7 @@ func (b *binary) Delete(ctx context.Context) (*runtime.Exit, error) {
 	cmd.Stdout = out
 	cmd.Stderr = errb
 	if err := cmd.Run(); err != nil {
+		log.G(ctx).WithField("cmd", cmd).WithError(err).Error("failed to delete")
 		return nil, errors.Wrapf(err, "%s", errb.String())
 	}
 	s := errb.String()

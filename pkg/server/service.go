@@ -28,13 +28,13 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/log"
+	"github.com/containerd/containerd/pkg/cri/streaming"
 	"github.com/containerd/containerd/plugin"
 	cni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-	"k8s.io/kubernetes/pkg/kubelet/server/streaming"
 
 	api "github.com/containerd/cri/pkg/api/v1"
 	"github.com/containerd/cri/pkg/atomic"

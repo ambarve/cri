@@ -21,9 +21,9 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	reference "github.com/containerd/containerd/reference/docker"
 	"github.com/containerd/containerd/runtime/linux/runctypes"
 	runcoptions "github.com/containerd/containerd/runtime/v2/runc/options"
-	"github.com/docker/distribution/reference"
 	imagedigest "github.com/opencontainers/go-digest"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"

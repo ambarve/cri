@@ -133,8 +133,6 @@ var diffCommand = cli.Command{
 		labels := commands.LabelArgs(context.StringSlice("label"))
 		snapshotter := client.SnapshotService(context.GlobalString("snapshotter"))
 
-		fmt.Println(context.String("media-type"))
-
 		if context.Bool("keep") {
 			labels["containerd.io/gc.root"] = time.Now().UTC().Format(time.RFC3339)
 		}
@@ -164,6 +162,7 @@ var diffCommand = cli.Command{
 		if err != nil {
 			return err
 		}
+		defer ra.Close()
 		_, err = io.Copy(os.Stdout, content.NewReader(ra))
 
 		return err

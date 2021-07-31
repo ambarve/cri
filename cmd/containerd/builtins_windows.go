@@ -24,4 +24,5 @@ import (
 	_ "github.com/containerd/containerd/runtime/v2"
 	_ "github.com/containerd/containerd/snapshots/lcow"
 	_ "github.com/containerd/containerd/snapshots/wcow"
+	_ "github.com/containerd/containerd/snapshots/windows"
 )

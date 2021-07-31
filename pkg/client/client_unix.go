@@ -22,7 +22,7 @@ import (
 	"net"
 	"time"
 
-	"k8s.io/kubernetes/pkg/kubelet/util"
+	"github.com/containerd/containerd/integration/util"
 )
 
 func GetAddressAndDialer(endpoint string) (string, func(addr string, timeout time.Duration) (net.Conn, error), error) {

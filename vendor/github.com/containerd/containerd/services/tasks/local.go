@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,7 +43,6 @@ import (
 	"github.com/containerd/containerd/plugin"
 	"github.com/containerd/containerd/runtime"
 	"github.com/containerd/containerd/runtime/linux/runctypes"
-	v2 "github.com/containerd/containerd/runtime/v2"
 	"github.com/containerd/containerd/runtime/v2/runc/options"
 	"github.com/containerd/containerd/services"
 	"github.com/containerd/typeurl"
@@ -65,11 +63,18 @@ const (
 	stateTimeout = "io.containerd.timeout.task.state"
 )
 
+// Config for the tasks service plugin
+type Config struct {
+	// RdtConfigFile specifies the path to RDT configuration file
+	RdtConfigFile string `toml:"rdt_config_file" json:"rdtConfigFile"`
+}
+
 func init() {
 	plugin.Register(&plugin.Registration{
 		Type:     plugin.ServicePlugin,
 		ID:       services.TasksService,
 		Requires: tasksServiceRequires,
+		Config:   &Config{},
 		InitFn:   initFunc,
 	})
 
@@ -77,17 +82,23 @@ func init() {
 }
 
 func initFunc(ic *plugin.InitContext) (interface{}, error) {
+	config := ic.Config.(*Config)
 	runtimes, err := loadV1Runtimes(ic)
 	if err != nil {
 		return nil, err
 	}
 
-	v2r, err := ic.Get(plugin.RuntimePluginV2)
+	v2r, err := ic.GetByID(plugin.RuntimePluginV2, "task")
 	if err != nil {
 		return nil, err
 	}
 
 	m, err := ic.Get(plugin.MetadataPlugin)
+	if err != nil {
+		return nil, err
+	}
+
+	ep, err := ic.Get(plugin.EventPlugin)
 	if err != nil {
 		return nil, err
 	}
@@ -105,9 +116,9 @@ func initFunc(ic *plugin.InitContext) (interface{}, error) {
 		runtimes:   runtimes,
 		containers: metadata.NewContainerStore(db),
 		store:      db.ContentStore(),
-		publisher:  ic.Events,
+		publisher:  ep.(events.Publisher),
 		monitor:    monitor.(runtime.TaskMonitor),
-		v2Runtime:  v2r.(*v2.TaskManager),
+		v2Runtime:  v2r.(runtime.PlatformRuntime),
 	}
 	for _, r := range runtimes {
 		tasks, err := r.Tasks(ic.Context, true)
@@ -115,7 +126,7 @@ func initFunc(ic *plugin.InitContext) (interface{}, error) {
 			return nil, err
 		}
 		for _, t := range tasks {
-			l.monitor.Monitor(t)
+			l.monitor.Monitor(t, nil)
 		}
 	}
 	v2Tasks, err := l.v2Runtime.Tasks(ic.Context, true)
@@ -123,8 +134,13 @@ func initFunc(ic *plugin.InitContext) (interface{}, error) {
 		return nil, err
 	}
 	for _, t := range v2Tasks {
-		l.monitor.Monitor(t)
+		l.monitor.Monitor(t, nil)
 	}
+
+	if err := initRdt(config.RdtConfigFile); err != nil {
+		log.G(ic.Context).WithError(err).Errorf("RDT initialization failed")
+	}
+
 	return l, nil
 }
 
@@ -135,7 +151,7 @@ type local struct {
 	publisher  events.Publisher
 
 	monitor   runtime.TaskMonitor
-	v2Runtime *v2.TaskManager
+	v2Runtime runtime.PlatformRuntime
 }
 
 func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.CallOption) (*api.CreateTaskResponse, error) {
@@ -148,8 +164,8 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 		return nil, err
 	}
 	// jump get checkpointPath from checkpoint image
-	if checkpointPath != "" && r.Checkpoint != nil {
-		checkpointPath, err = ioutil.TempDir(os.Getenv("XDG_RUNTIME_DIR"), "ctrd-checkpoint")
+	if checkpointPath == "" && r.Checkpoint != nil {
+		checkpointPath, err = os.MkdirTemp(os.Getenv("XDG_RUNTIME_DIR"), "ctrd-checkpoint")
 		if err != nil {
 			return nil, err
 		}
@@ -184,6 +200,9 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 		RuntimeOptions: container.Runtime.Options,
 		TaskOptions:    r.Options,
 	}
+	if r.RuntimePath != "" {
+		opts.Runtime = r.RuntimePath
+	}
 	for _, m := range r.Rootfs {
 		opts.Rootfs = append(opts.Rootfs, mount.Mount{
 			Type:    m.Type,
@@ -205,18 +224,23 @@ func (l *local) Create(ctx context.Context, r *api.CreateTaskRequest, _ ...grpc.
 		return nil, errdefs.ToGRPC(err)
 	}
 	if err == nil {
-		return nil, errdefs.ToGRPC(fmt.Errorf("task %s already exists", r.ContainerID))
+		return nil, errdefs.ToGRPC(fmt.Errorf("task %s: %w", r.ContainerID, errdefs.ErrAlreadyExists))
 	}
 	c, err := rtime.Create(ctx, r.ContainerID, opts)
 	if err != nil {
 		return nil, errdefs.ToGRPC(err)
 	}
-	if err := l.monitor.Monitor(c); err != nil {
+	labels := map[string]string{"runtime": container.Runtime.Name}
+	if err := l.monitor.Monitor(c, labels); err != nil {
 		return nil, errors.Wrap(err, "monitor task")
+	}
+	pid, err := c.PID(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get task pid")
 	}
 	return &api.CreateTaskResponse{
 		ContainerID: r.ContainerID,
-		Pid:         c.PID(),
+		Pid:         pid,
 	}, nil
 }
 
@@ -244,17 +268,32 @@ func (l *local) Start(ctx context.Context, r *api.StartRequest, _ ...grpc.CallOp
 }
 
 func (l *local) Delete(ctx context.Context, r *api.DeleteTaskRequest, _ ...grpc.CallOption) (*api.DeleteResponse, error) {
-	t, err := l.getTask(ctx, r.ContainerID)
+	container, err := l.getContainer(ctx, r.ContainerID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Find runtime manager
+	rtime, err := l.getRuntime(container.Runtime.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get task object
+	t, err := rtime.Get(ctx, container.ID)
+	if err != nil {
+		return nil, status.Errorf(codes.NotFound, "task %v not found", container.ID)
+	}
+
 	if err := l.monitor.Stop(t); err != nil {
 		return nil, err
 	}
-	exit, err := t.Delete(ctx)
+
+	exit, err := rtime.Delete(ctx, r.ContainerID)
 	if err != nil {
 		return nil, errdefs.ToGRPC(err)
 	}
+
 	return &api.DeleteResponse{
 		ExitStatus: exit.Status,
 		ExitedAt:   exit.Timestamp,
@@ -513,7 +552,7 @@ func (l *local) Checkpoint(ctx context.Context, r *api.CheckpointTaskRequest, _ 
 	checkpointImageExists := false
 	if image == "" {
 		checkpointImageExists = true
-		image, err = ioutil.TempDir(os.Getenv("XDG_RUNTIME_DIR"), "ctd-checkpoint")
+		image, err = os.MkdirTemp(os.Getenv("XDG_RUNTIME_DIR"), "ctd-checkpoint")
 		if err != nil {
 			return nil, errdefs.ToGRPC(err)
 		}

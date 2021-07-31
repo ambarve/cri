@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -24,18 +25,19 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"sync"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
+	exec "golang.org/x/sys/execabs"
 )
 
 // NewBinaryProcessor returns a binary processor for use with processing content streams
-func NewBinaryProcessor(ctx context.Context, imt, rmt string, stream StreamProcessor, name string, args []string, payload *types.Any) (StreamProcessor, error) {
+func NewBinaryProcessor(ctx context.Context, imt, rmt string, stream StreamProcessor, name string, args, env []string, payload *types.Any) (StreamProcessor, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, env...)
 
 	var payloadC io.Closer
 	if payload != nil {

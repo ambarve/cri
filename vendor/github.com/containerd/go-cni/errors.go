@@ -1,7 +1,23 @@
+/*
+   Copyright The containerd Authors.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+*/
+
 package cni
 
 import (
-	"github.com/pkg/errors"
+	"errors"
 )
 
 var (
@@ -13,27 +29,27 @@ var (
 	ErrLoad              = errors.New("failed to load cni config")
 )
 
-// IsCNINotInitialized returns true if the error is due cni config not being intialized
+// IsCNINotInitialized returns true if the error is due to cni config not being initialized
 func IsCNINotInitialized(err error) bool {
-	return errors.Cause(err) == ErrCNINotInitialized
+	return errors.Is(err, ErrCNINotInitialized)
 }
 
 // IsInvalidConfig returns true if the error is invalid cni config
 func IsInvalidConfig(err error) bool {
-	return errors.Cause(err) == ErrInvalidConfig
+	return errors.Is(err, ErrInvalidConfig)
 }
 
 // IsNotFound returns true if the error is due to a missing config or result
 func IsNotFound(err error) bool {
-	return errors.Cause(err) == ErrNotFound
+	return errors.Is(err, ErrNotFound)
 }
 
 // IsReadFailure return true if the error is a config read failure
 func IsReadFailure(err error) bool {
-	return errors.Cause(err) == ErrRead
+	return errors.Is(err, ErrRead)
 }
 
 // IsInvalidResult return true if the error is due to invalid cni result
 func IsInvalidResult(err error) bool {
-	return errors.Cause(err) == ErrInvalidResult
+	return errors.Is(err, ErrInvalidResult)
 }

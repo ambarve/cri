@@ -35,11 +35,11 @@ import (
 	"golang.org/x/sys/unix"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/cri/pkg/annotations"
 	criconfig "github.com/containerd/cri/pkg/config"
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
-	"github.com/containerd/cri/pkg/log"
 	"github.com/containerd/cri/pkg/netns"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 	"github.com/containerd/cri/pkg/util"
@@ -136,7 +136,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 		defer func() {
 			if retErr != nil {
 				// Teardown network if an error is returned.
-				if err := c.teardownPod(id, sandbox.NetNSPath, config); err != nil {
+				if err := c.teardownPod(ctx, id, sandbox.NetNSPath, config); err != nil {
 					log.G(ctx).WithError(err).Errorf("Failed to destroy network for sandbox %q", id)
 				}
 			}

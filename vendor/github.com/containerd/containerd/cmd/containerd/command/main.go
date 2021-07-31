@@ -19,7 +19,7 @@ package command
 import (
 	gocontext "context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"os"
 	"os/signal"
@@ -28,13 +28,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/containerd/containerd/defaults"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/log"
+	_ "github.com/containerd/containerd/metrics" // import containerd build info
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/oc"
 	"github.com/containerd/containerd/services/server"
 	srvconfig "github.com/containerd/containerd/services/server/config"
 	"github.com/containerd/containerd/sys"
+	"github.com/containerd/containerd/tracing"
 	"github.com/containerd/containerd/version"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -54,13 +57,8 @@ high performance container runtime
 `
 
 func init() {
-	logrus.SetFormatter(&logrus.TextFormatter{
-		TimestampFormat: log.RFC3339NanoFixed,
-		FullTimestamp:   true,
-	})
-
 	// Discard grpc logs so that they don't mess with our stdio
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, ioutil.Discard, ioutil.Discard))
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(io.Discard, io.Discard, io.Discard))
 
 	cli.VersionPrinter = func(c *cli.Context) {
 		fmt.Println(c.App.Name, version.Package, c.App.Version, version.Revision)
@@ -88,7 +86,7 @@ can be used and modified as necessary as a custom configuration.`
 		cli.StringFlag{
 			Name:  "config,c",
 			Usage: "path to the configuration file",
-			Value: defaultConfigPath,
+			Value: filepath.Join(defaults.DefaultConfigDir, "config.toml"),
 		},
 		cli.StringFlag{
 			Name:  "log-level,l",
@@ -115,15 +113,23 @@ can be used and modified as necessary as a custom configuration.`
 	}
 	app.Action = func(context *cli.Context) error {
 		var (
-			start   = time.Now()
-			signals = make(chan os.Signal, 2048)
-			serverC = make(chan *server.Server, 1)
-			ctx     = gocontext.Background()
-			config  = defaultConfig()
+			start       = time.Now()
+			signals     = make(chan os.Signal, 2048)
+			serverC     = make(chan *server.Server, 1)
+			ctx, cancel = gocontext.WithCancel(gocontext.Background())
+			config      = defaultConfig()
 		)
 
-		if err := srvconfig.LoadConfig(context.GlobalString("config"), config); err != nil && !os.IsNotExist(err) {
-			return err
+		defer cancel()
+
+		// Only try to load the config if it either exists, or the user explicitly
+		// told us to load this path.
+		configPath := context.GlobalString("config")
+		_, err := os.Stat(configPath)
+		if !os.IsNotExist(err) || context.GlobalIsSet("config") {
+			if err := srvconfig.LoadConfig(configPath, config); err != nil {
+				return err
+			}
 		}
 
 		// Apply flags to the config
@@ -148,7 +154,7 @@ can be used and modified as necessary as a custom configuration.`
 			return nil
 		}
 
-		done := handleSignals(ctx, signals, serverC)
+		done := handleSignals(ctx, signals, serverC, cancel)
 		// start the signal handler as soon as we can to make sure that
 		// we don't miss any signals during boot
 		signal.Notify(signals, handledSignals...)
@@ -180,21 +186,60 @@ can be used and modified as necessary as a custom configuration.`
 			"revision": version.Revision,
 		}).Info("starting containerd")
 
-		server, err := server.New(ctx, config)
-		if err != nil {
-			return err
+		type srvResp struct {
+			s   *server.Server
+			err error
 		}
 
-		// Launch as a Windows Service if necessary
-		if err := launchService(server, done); err != nil {
-			logrus.Fatal(err)
+		// run server initialization in a goroutine so we don't end up blocking important things like SIGTERM handling
+		// while the server is initializing.
+		// As an example opening the bolt database will block forever if another containerd is already running and containerd
+		// will have to be be `kill -9`'ed to recover.
+		chsrv := make(chan srvResp)
+		go func() {
+			defer close(chsrv)
+
+			server, err := server.New(ctx, config)
+			if err != nil {
+				select {
+				case chsrv <- srvResp{err: err}:
+				case <-ctx.Done():
+				}
+				return
+			}
+
+			// Launch as a Windows Service if necessary
+			if err := launchService(server, done); err != nil {
+				logrus.Fatal(err)
+			}
+			select {
+			case <-ctx.Done():
+				server.Stop()
+			case chsrv <- srvResp{s: server}:
+			}
+		}()
+
+		var server *server.Server
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case r := <-chsrv:
+			if r.err != nil {
+				return r.err
+			}
+			server = r.s
 		}
 
-		serverC <- server
+		// We don't send the server down serverC directly in the goroutine above because we need it lower down.
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case serverC <- server:
+		}
 
 		if config.Debug.Address != "" {
 			var l net.Listener
-			if filepath.IsAbs(config.Debug.Address) {
+			if isLocalAddress(config.Debug.Address) {
 				if l, err = sys.GetLocalListener(config.Debug.Address, config.Debug.UID, config.Debug.GID); err != nil {
 					return errors.Wrapf(err, "failed to get listener for debug endpoint")
 				}
@@ -258,9 +303,14 @@ func serve(ctx gocontext.Context, l net.Listener, serveFunc func(net.Listener) e
 func applyFlags(context *cli.Context, config *srvconfig.Config) error {
 	// the order for config vs flag values is that flags will always override
 	// the config values if they are set
-	if err := setLevel(context, config); err != nil {
+	if err := setLogLevel(context, config); err != nil {
 		return err
 	}
+	if err := setLogFormat(config); err != nil {
+		return err
+	}
+	setLogHooks()
+
 	for _, v := range []struct {
 		name string
 		d    *string
@@ -288,7 +338,7 @@ func applyFlags(context *cli.Context, config *srvconfig.Config) error {
 	return nil
 }
 
-func setLevel(context *cli.Context, config *srvconfig.Config) error {
+func setLogLevel(context *cli.Context, config *srvconfig.Config) error {
 	l := context.GlobalString("log-level")
 	if l == "" {
 		l = config.Debug.Level
@@ -301,6 +351,33 @@ func setLevel(context *cli.Context, config *srvconfig.Config) error {
 		logrus.SetLevel(lvl)
 	}
 	return nil
+}
+
+func setLogFormat(config *srvconfig.Config) error {
+	f := config.Debug.Format
+	if f == "" {
+		f = log.TextFormat
+	}
+
+	switch f {
+	case log.TextFormat:
+		logrus.SetFormatter(&logrus.TextFormatter{
+			TimestampFormat: log.RFC3339NanoFixed,
+			FullTimestamp:   true,
+		})
+	case log.JSONFormat:
+		logrus.SetFormatter(&logrus.JSONFormatter{
+			TimestampFormat: log.RFC3339NanoFixed,
+		})
+	default:
+		return errors.Errorf("unknown log format: %s", f)
+	}
+
+	return nil
+}
+
+func setLogHooks() {
+	logrus.StandardLogger().AddHook(tracing.NewLogrusHook())
 }
 
 func dumpStacks(writeToFile bool) {

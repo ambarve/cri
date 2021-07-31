@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -45,7 +44,7 @@ func (r dockerFetcher) Fetch(ctx context.Context, desc ocispec.Descriptor) (io.R
 		return nil, errors.Wrap(errdefs.ErrNotFound, "no pull hosts")
 	}
 
-	ctx, err := contextWithRepositoryScope(ctx, r.refspec, false)
+	ctx, err := ContextWithRepositoryScope(ctx, r.refspec, false)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +57,10 @@ func (r dockerFetcher) Fetch(ctx context.Context, desc ocispec.Descriptor) (io.R
 			u, err := url.Parse(us)
 			if err != nil {
 				log.G(ctx).WithError(err).Debug("failed to parse")
+				continue
+			}
+			if u.Scheme != "http" && u.Scheme != "https" {
+				log.G(ctx).Debug("non-http(s) alternative url is unsupported")
 				continue
 			}
 			log.G(ctx).Debug("trying alternative url")
@@ -148,7 +151,7 @@ func (r dockerFetcher) Fetch(ctx context.Context, desc ocispec.Descriptor) (io.R
 	})
 }
 
-func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string, offset int64) (io.ReadCloser, error) {
+func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string, offset int64) (_ io.ReadCloser, retErr error) {
 	req.header.Set("Accept", strings.Join([]string{mediatype, `*/*`}, ", "))
 
 	if offset > 0 {
@@ -162,13 +165,17 @@ func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string,
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			resp.Body.Close()
+		}
+	}()
 
 	if resp.StatusCode > 299 {
 		// TODO(stevvooe): When doing a offset specific request, we should
 		// really distinguish between a 206 and a 200. In the case of 200, we
 		// can discard the bytes, hiding the seek behavior from the
 		// implementation.
-		defer resp.Body.Close()
 
 		if resp.StatusCode == http.StatusNotFound {
 			return nil, errors.Wrapf(errdefs.ErrNotFound, "content at %v not found", req.String())
@@ -193,12 +200,12 @@ func (r dockerFetcher) open(ctx context.Context, req *request, mediatype string,
 
 			// Discard up to offset
 			// Could use buffer pool here but this case should be rare
-			n, err := io.Copy(ioutil.Discard, io.LimitReader(resp.Body, offset))
+			n, err := io.Copy(io.Discard, io.LimitReader(resp.Body, offset))
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to discard to offset")
 			}
 			if n != offset {
-				return nil, errors.Errorf("unable to discard to offset")
+				return nil, errors.New("unable to discard to offset")
 			}
 
 		}

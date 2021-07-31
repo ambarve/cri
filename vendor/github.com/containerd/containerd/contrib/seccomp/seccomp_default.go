@@ -1,3 +1,4 @@
+//go:build linux
 // +build linux
 
 /*
@@ -49,6 +50,7 @@ func arches() []specs.Arch {
 
 // DefaultProfile defines the allowed syscalls for the default seccomp profile.
 func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
+	nosys := uint(unix.ENOSYS)
 	syscalls := []specs.LinuxSyscall{
 		{
 			Names: []string{
@@ -74,6 +76,7 @@ func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
 				"clock_nanosleep",
 				"clock_nanosleep_time64",
 				"close",
+				"close_range",
 				"connect",
 				"copy_file_range",
 				"creat",
@@ -85,6 +88,7 @@ func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
 				"epoll_ctl",
 				"epoll_ctl_old",
 				"epoll_pwait",
+				"epoll_pwait2",
 				"epoll_wait",
 				"epoll_wait_old",
 				"eventfd",
@@ -524,10 +528,17 @@ func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
 				Names: []string{
 					"bpf",
 					"clone",
+					"clone3",
 					"fanotify_init",
+					"fsconfig",
+					"fsmount",
+					"fsopen",
+					"fspick",
 					"lookup_dcookie",
 					"mount",
+					"move_mount",
 					"name_to_handle_at",
+					"open_tree",
 					"perf_event_open",
 					"quotactl",
 					"setdomainname",
@@ -574,6 +585,7 @@ func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
 				Names: []string{
 					"kcmp",
 					"pidfd_getfd",
+					"process_madvise",
 					"process_vm_readv",
 					"process_vm_writev",
 					"ptrace",
@@ -648,6 +660,15 @@ func DefaultProfile(sp *specs.Spec) *specs.LinuxSeccomp {
 				},
 			})
 		}
+		// clone3 is explicitly requested to give ENOSYS instead of the default EPERM, when CAP_SYS_ADMIN is unset
+		// https://github.com/moby/moby/pull/42681
+		s.Syscalls = append(s.Syscalls, specs.LinuxSyscall{
+			Names: []string{
+				"clone3",
+			},
+			Action:   specs.ActErrno,
+			ErrnoRet: &nosys,
+		})
 	}
 
 	return s

@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -21,9 +22,9 @@ package lcow
 import (
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
+	"runtime"
 	"time"
 
 	"github.com/Microsoft/go-winio/pkg/security"
@@ -61,7 +62,7 @@ func init() {
 
 			ic.Meta.Platforms = append(ic.Meta.Platforms, ocispec.Platform{
 				OS:           "linux",
-				Architecture: "amd64",
+				Architecture: runtime.GOARCH,
 			})
 			return NewWindowsLcowDiff(md.(*metadata.DB).ContentStore())
 		},
@@ -99,10 +100,10 @@ func (s windowsLcowDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mou
 	defer func() {
 		if err == nil {
 			log.G(ctx).WithFields(logrus.Fields{
-				"d":     time.Since(t1),
-				"dgst":  desc.Digest,
-				"size":  desc.Size,
-				"media": desc.MediaType,
+				"d":      time.Since(t1),
+				"digest": desc.Digest,
+				"size":   desc.Size,
+				"media":  desc.MediaType,
 			}).Debugf("diff applied")
 		}
 	}()
@@ -165,7 +166,7 @@ func (s windowsLcowDiff) Apply(ctx context.Context, desc ocispec.Descriptor, mou
 	outFile.Close()
 
 	// Read any trailing data
-	if _, err := io.Copy(ioutil.Discard, rc); err != nil {
+	if _, err := io.Copy(io.Discard, rc); err != nil {
 		return emptyDesc, err
 	}
 

@@ -23,13 +23,13 @@ import (
 	eventtypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/log"
+	"github.com/moby/sys/signal"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	"github.com/containerd/cri/pkg/store"
 	containerstore "github.com/containerd/cri/pkg/store/container"
-	"github.com/moby/sys/signal"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 

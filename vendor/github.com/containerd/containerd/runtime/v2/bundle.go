@@ -19,7 +19,6 @@ package v2
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -74,7 +73,10 @@ func NewBundle(ctx context.Context, root, state, id string, spec []byte) (b *Bun
 	if err := os.MkdirAll(filepath.Dir(b.Path), 0711); err != nil {
 		return nil, err
 	}
-	if err := os.Mkdir(b.Path, 0711); err != nil {
+	if err := os.Mkdir(b.Path, 0700); err != nil {
+		return nil, err
+	}
+	if err := prepareBundleDirectoryPermissions(b.Path, spec); err != nil {
 		return nil, err
 	}
 	paths = append(paths, b.Path)
@@ -102,7 +104,7 @@ func NewBundle(ctx context.Context, root, state, id string, spec []byte) (b *Bun
 		return nil, err
 	}
 	// write the spec to the bundle
-	err = ioutil.WriteFile(filepath.Join(b.Path, configFilename), spec, 0666)
+	err = os.WriteFile(filepath.Join(b.Path, configFilename), spec, 0666)
 	return b, err
 }
 

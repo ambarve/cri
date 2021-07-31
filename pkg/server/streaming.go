@@ -24,12 +24,12 @@ import (
 	"net"
 	"os"
 
+	"github.com/containerd/containerd/pkg/cri/streaming"
 	"github.com/pkg/errors"
 	k8snet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/tools/remotecommand"
 	k8scert "k8s.io/client-go/util/cert"
-	"k8s.io/kubernetes/pkg/kubelet/server/streaming"
 	"k8s.io/utils/exec"
 
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
@@ -67,7 +67,7 @@ func getStreamListenerMode(c *criService) (streamListenerMode, error) {
 
 func newStreamServer(c *criService, addr, port string) (streaming.Server, error) {
 	if addr == "" {
-		a, err := k8snet.ChooseBindAddress(nil)
+		a, err := k8snet.ResolveBindAddress(nil)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get stream server address")
 		}

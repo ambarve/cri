@@ -17,13 +17,10 @@
 package command
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"time"
 	"unsafe"
@@ -33,6 +30,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/urfave/cli"
+	exec "golang.org/x/sys/execabs"
 	"golang.org/x/sys/windows"
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -251,7 +249,7 @@ func registerUnregisterService(root string) (bool, error) {
 			return true, err
 		}
 
-		logOutput := ioutil.Discard
+		logOutput := io.Discard
 		if logFileFlag != "" {
 			f, err := os.OpenFile(logFileFlag, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
@@ -277,7 +275,7 @@ func launchService(s *server.Server, done chan struct{}) error {
 		done:    done,
 	}
 
-	interactive, err := svc.IsAnInteractiveSession()
+	interactive, err := svc.IsAnInteractiveSession() // nolint:staticcheck
 	if err != nil {
 		return err
 	}
@@ -339,9 +337,6 @@ func initPanicFile(path string) error {
 	// and replace it.
 	if st.Size() > 0 {
 		panicFile.Close()
-
-		logFileInChunks(path)
-
 		os.Rename(path, path+".old")
 		panicFile, err = os.Create(path)
 		if err != nil {
@@ -383,56 +378,4 @@ func removePanicFile() {
 			os.Remove(panicFile.Name())
 		}
 	}
-}
-
-func logFileInChunks(path string) error {
-	fileReader, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer fileReader.Close()
-
-	st, err := fileReader.Stat()
-	if err != nil {
-		return err
-	}
-
-	if st.Size() == 0 {
-		return nil
-	}
-
-	// There seems to be a limit for the message length, which is somewhere between 16-32KB.
-	// Set the chunkSize to 16KB, which is the max power of 2 that seems to work.
-	chunkSize := 16 * 1024
-	numChunks := st.Size() / int64(chunkSize)
-	if st.Size()%int64(chunkSize) > 0 {
-		numChunks++
-	}
-	buf := make([]byte, chunkSize)
-
-	// Set reader size (buffer size) to 1MB to issue less reads.
-	readerSize := 1024 * 1024
-	reader := bufio.NewReaderSize(fileReader, readerSize)
-	logrus.WithFields(logrus.Fields{
-		"filename":   path,
-		"chunkCount": numChunks,
-	}).Debug("Begin logging file chunks")
-
-	indx := 0
-	for {
-		n, err := reader.Read(buf)
-		if err != nil {
-			if err != io.EOF {
-				logrus.WithError(err).Error("failed to read file chunks")
-			}
-			break
-		}
-		logrus.WithFields(logrus.Fields{
-			"index": indx,
-			"chunk": string(buf[:n]),
-		}).Debug("logging file chunk")
-		indx++
-	}
-	logrus.Debug("End logging file chunks")
-	return nil
 }

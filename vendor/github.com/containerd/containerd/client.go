@@ -21,7 +21,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"runtime"
 	"strconv"
 	"strings"
@@ -39,6 +38,7 @@ import (
 	snapshotsapi "github.com/containerd/containerd/api/services/snapshots/v1"
 	"github.com/containerd/containerd/api/services/tasks/v1"
 	versionservice "github.com/containerd/containerd/api/services/version/v1"
+	apitypes "github.com/containerd/containerd/api/types"
 	"github.com/containerd/containerd/containers"
 	"github.com/containerd/containerd/content"
 	contentproxy "github.com/containerd/containerd/content/proxy"
@@ -62,8 +62,11 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"golang.org/x/sync/semaphore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/health/grpc_health_v1"
 )
 
@@ -117,23 +120,31 @@ func New(address string, opts ...ClientOpt) (*Client, error) {
 		}
 		gopts := []grpc.DialOption{
 			grpc.WithBlock(),
-			grpc.WithInsecure(),
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
 			grpc.FailOnNonTempDialError(true),
 			grpc.WithConnectParams(connParams),
 			grpc.WithContextDialer(dialer.ContextDialer),
-
-			// TODO(stevvooe): We may need to allow configuration of this on the client.
-			grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(defaults.DefaultMaxRecvMsgSize)),
-			grpc.WithDefaultCallOptions(grpc.MaxCallSendMsgSize(defaults.DefaultMaxSendMsgSize)),
+			grpc.WithReturnConnectionError(),
 		}
 		if len(copts.dialOptions) > 0 {
 			gopts = copts.dialOptions
 		}
+		gopts = append(gopts, grpc.WithDefaultCallOptions(
+			grpc.MaxCallRecvMsgSize(defaults.DefaultMaxRecvMsgSize),
+			grpc.MaxCallSendMsgSize(defaults.DefaultMaxSendMsgSize)))
+		if len(copts.callOptions) > 0 {
+			gopts = append(gopts, grpc.WithDefaultCallOptions(copts.callOptions...))
+		}
 		if copts.defaultns != "" {
 			unary, stream := newNSInterceptors(copts.defaultns)
 			gopts = append(gopts,
-				grpc.WithUnaryInterceptor(unary),
-				grpc.WithStreamInterceptor(stream),
+				grpc.WithChainUnaryInterceptor(unary, otelgrpc.UnaryClientInterceptor()),
+				grpc.WithChainStreamInterceptor(stream, otelgrpc.StreamClientInterceptor()),
+			)
+		} else {
+			gopts = append(gopts,
+				grpc.WithUnaryInterceptor(otelgrpc.UnaryClientInterceptor()),
+				grpc.WithStreamInterceptor(otelgrpc.StreamClientInterceptor()),
 			)
 		}
 		connector := func() (*grpc.ClientConn, error) {
@@ -225,6 +236,11 @@ func (c *Client) Reconnect() error {
 	return nil
 }
 
+// Runtime returns the name of the runtime being used
+func (c *Client) Runtime() string {
+	return c.runtime
+}
+
 // IsServing returns true if the client can successfully connect to the
 // containerd daemon and the healthcheck service returns the SERVING
 // response.
@@ -258,8 +274,8 @@ func (c *Client) Containers(ctx context.Context, filters ...string) ([]Container
 	return out, nil
 }
 
-// NewContainer will create a new container in container with the provided id
-// the id must be unique within the namespace
+// NewContainer will create a new container with the provided id.
+// The id must be unique within the namespace.
 func (c *Client) NewContainer(ctx context.Context, id string, opts ...NewContainerOpts) (Container, error) {
 	ctx, done, err := c.WithLease(ctx)
 	if err != nil {
@@ -349,6 +365,9 @@ type RemoteContext struct {
 	// MaxConcurrentDownloads is the max concurrent content downloads for each pull.
 	MaxConcurrentDownloads int
 
+	// MaxConcurrentUploadedLayers is the max concurrent uploaded layers for each push.
+	MaxConcurrentUploadedLayers int
+
 	// AllMetadata downloads all manifests and known-configuration files
 	AllMetadata bool
 
@@ -359,9 +378,7 @@ type RemoteContext struct {
 
 func defaultRemoteContext() *RemoteContext {
 	return &RemoteContext{
-		Resolver: docker.NewResolver(docker.ResolverOptions{
-			Client: http.DefaultClient,
-		}),
+		Resolver: docker.NewResolver(docker.ResolverOptions{}),
 	}
 }
 
@@ -457,7 +474,12 @@ func (c *Client) Push(ctx context.Context, ref string, desc ocispec.Descriptor, 
 		wrapper = pushCtx.HandlerWrapper
 	}
 
-	return remotes.PushContent(ctx, pusher, desc, c.ContentStore(), pushCtx.PlatformMatcher, wrapper)
+	var limiter *semaphore.Weighted
+	if pushCtx.MaxConcurrentUploadedLayers > 0 {
+		limiter = semaphore.NewWeighted(int64(pushCtx.MaxConcurrentUploadedLayers))
+	}
+
+	return remotes.PushContent(ctx, pusher, desc, c.ContentStore(), limiter, pushCtx.PlatformMatcher, wrapper)
 }
 
 // GetImage returns an existing image
@@ -714,10 +736,12 @@ func (c *Client) Version(ctx context.Context) (Version, error) {
 	}, nil
 }
 
+// ServerInfo represents the introspected server information
 type ServerInfo struct {
 	UUID string
 }
 
+// Server returns server information from the introspection service
 func (c *Client) Server(ctx context.Context) (ServerInfo, error) {
 	c.connMu.Lock()
 	if c.conn == nil {
@@ -781,4 +805,36 @@ func CheckRuntime(current, expected string) bool {
 		}
 	}
 	return true
+}
+
+// GetSnapshotterSupportedPlatforms returns a platform matchers which represents the
+// supported platforms for the given snapshotters
+func (c *Client) GetSnapshotterSupportedPlatforms(ctx context.Context, snapshotterName string) (platforms.MatchComparer, error) {
+	filters := []string{fmt.Sprintf("type==%s, id==%s", plugin.SnapshotPlugin, snapshotterName)}
+	in := c.IntrospectionService()
+
+	resp, err := in.Plugins(ctx, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.Plugins) <= 0 {
+		return nil, fmt.Errorf("inspection service could not find snapshotter %s plugin", snapshotterName)
+	}
+
+	sn := resp.Plugins[0]
+	snPlatforms := toPlatforms(sn.Platforms)
+	return platforms.Any(snPlatforms...), nil
+}
+
+func toPlatforms(pt []apitypes.Platform) []ocispec.Platform {
+	platforms := make([]ocispec.Platform, len(pt))
+	for i, p := range pt {
+		platforms[i] = ocispec.Platform{
+			Architecture: p.Architecture,
+			OS:           p.OS,
+			Variant:      p.Variant,
+		}
+	}
+	return platforms
 }

@@ -1,4 +1,5 @@
-// +build !windows
+//go:build !windows && !freebsd && !darwin
+// +build !windows,!freebsd,!darwin
 
 /*
    Copyright The containerd Authors.
@@ -26,6 +27,7 @@ import (
 )
 
 var tasksServiceRequires = []plugin.Type{
+	plugin.EventPlugin,
 	plugin.RuntimePlugin,
 	plugin.RuntimePluginV2,
 	plugin.MetadataPlugin,

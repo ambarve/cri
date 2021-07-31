@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -21,10 +22,11 @@ package archive
 import (
 	"archive/tar"
 	"os"
+	"runtime"
 	"strings"
 	"syscall"
 
-	"github.com/containerd/containerd/sys"
+	"github.com/containerd/containerd/pkg/userns"
 	"github.com/containerd/continuity/fs"
 	"github.com/containerd/continuity/sysx"
 	"github.com/pkg/errors"
@@ -40,6 +42,20 @@ func chmodTarEntry(perm os.FileMode) os.FileMode {
 }
 
 func setHeaderForSpecialDevice(hdr *tar.Header, name string, fi os.FileInfo) error {
+	// Devmajor and Devminor are only needed for special devices.
+
+	// In FreeBSD, RDev for regular files is -1 (unless overridden by FS):
+	// https://cgit.freebsd.org/src/tree/sys/kern/vfs_default.c?h=stable/13#n1531
+	// (NODEV is -1: https://cgit.freebsd.org/src/tree/sys/sys/param.h?h=stable/13#n241).
+
+	// ZFS in particular does not override the default:
+	// https://cgit.freebsd.org/src/tree/sys/contrib/openzfs/module/os/freebsd/zfs/zfs_vnops_os.c?h=stable/13#n2027
+
+	// Since `Stat_t.Rdev` is uint64, the cast turns -1 into (2^64 - 1).
+	// Such large values cannot be encoded in a tar header.
+	if runtime.GOOS == "freebsd" && hdr.Typeflag != tar.TypeBlock && hdr.Typeflag != tar.TypeChar {
+		return nil
+	}
 	s, ok := fi.Sys().(*syscall.Stat_t)
 	if !ok {
 		return errors.New("unsupported stat type")
@@ -69,6 +85,7 @@ func openFile(name string, flag int, perm os.FileMode) (*os.File, error) {
 	}
 	// Call chmod to avoid permission mask
 	if err := os.Chmod(name, perm); err != nil {
+		f.Close()
 		return nil, err
 	}
 	return f, err
@@ -87,7 +104,7 @@ func skipFile(hdr *tar.Header) bool {
 	switch hdr.Typeflag {
 	case tar.TypeBlock, tar.TypeChar:
 		// cannot create a device if running in user namespace
-		return sys.RunningInUserNS()
+		return userns.RunningInUserNS()
 	default:
 		return false
 	}
@@ -108,22 +125,7 @@ func handleTarTypeBlockCharFifo(hdr *tar.Header, path string) error {
 		mode |= unix.S_IFIFO
 	}
 
-	return unix.Mknod(path, mode, int(unix.Mkdev(uint32(hdr.Devmajor), uint32(hdr.Devminor))))
-}
-
-func handleLChmod(hdr *tar.Header, path string, hdrInfo os.FileInfo) error {
-	if hdr.Typeflag == tar.TypeLink {
-		if fi, err := os.Lstat(hdr.Linkname); err == nil && (fi.Mode()&os.ModeSymlink == 0) {
-			if err := os.Chmod(path, hdrInfo.Mode()); err != nil && !os.IsNotExist(err) {
-				return err
-			}
-		}
-	} else if hdr.Typeflag != tar.TypeSymlink {
-		if err := os.Chmod(path, hdrInfo.Mode()); err != nil {
-			return err
-		}
-	}
-	return nil
+	return mknod(path, mode, unix.Mkdev(uint32(hdr.Devmajor), uint32(hdr.Devminor)))
 }
 
 func getxattr(path, attr string) ([]byte, error) {
@@ -196,10 +198,7 @@ func copyUpXAttrs(dst, src string) error {
 			}
 			return errors.Wrapf(err, "failed to get xattr %q on %s", xattr, src)
 		}
-		if err := unix.Lsetxattr(dst, xattr, data, unix.XATTR_CREATE); err != nil {
-			if err == unix.ENOTSUP || err == unix.ENODATA || err == unix.EEXIST {
-				continue
-			}
+		if err := lsetxattrCreate(dst, xattr, data); err != nil {
 			return errors.Wrapf(err, "failed to set xattr %q on %s", xattr, dst)
 		}
 	}

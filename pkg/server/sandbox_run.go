@@ -69,7 +69,8 @@ func (c *criService) setupPod(ctx context.Context, id string, path string, confi
 	}
 
 	labels := getPodCNILabels(id, config)
-	result, err := c.netPlugin.Setup(id,
+	result, err := c.netPlugin.Setup(ctx,
+		id,
 		path,
 		cni.WithLabels(labels),
 		cni.WithCapabilityPortMap(toCNIPortMappings(config.GetPortMappings())),
@@ -83,7 +84,7 @@ func (c *criService) setupPod(ctx context.Context, id string, path string, confi
 		return selectPodIP(configs.IPConfigs), result, nil
 	}
 	// If it comes here then the result was invalid so destroy the pod network and return error
-	if err := c.teardownPod(id, path, config); err != nil {
+	if err := c.teardownPod(ctx, id, path, config); err != nil {
 		log.G(ctx).WithError(err).Errorf("Failed to destroy network for sandbox %q", id)
 	}
 	return "", result, errors.Errorf("failed to find network info for sandbox %q", id)

@@ -77,6 +77,10 @@ func (cs *contentStore) Info(ctx context.Context, dgst digest.Digest) (content.I
 	if err := view(ctx, cs.db, func(tx *bolt.Tx) error {
 		bkt := getBlobBucket(tx, ns, dgst)
 		if bkt == nil {
+			// try to find shareable bkt before erroring
+			bkt = getShareableBucket(tx, dgst)
+		}
+		if bkt == nil {
 			return errors.Wrapf(errdefs.ErrNotFound, "content digest %v", dgst)
 		}
 
@@ -104,9 +108,12 @@ func (cs *contentStore) Update(ctx context.Context, info content.Info, fieldpath
 	if err := update(ctx, cs.db, func(tx *bolt.Tx) error {
 		bkt := getBlobBucket(tx, ns, info.Digest)
 		if bkt == nil {
+			// try to find a shareable bkt before erroring
+			bkt = getShareableBucket(tx, info.Digest)
+		}
+		if bkt == nil {
 			return errors.Wrapf(errdefs.ErrNotFound, "content digest %v", info.Digest)
 		}
-
 		if err := readInfo(&updated, bkt); err != nil {
 			return errors.Wrapf(err, "info %q", info.Digest)
 		}
@@ -181,7 +188,7 @@ func (cs *contentStore) Walk(ctx context.Context, fn content.WalkFunc, fs ...str
 			if err := readInfo(&info, bkt.Bucket(k)); err != nil {
 				return err
 			}
-			if filter.Match(adaptContentInfo(info)) {
+			if filter.Match(content.AdaptInfo(info)) {
 				infos = append(infos, info)
 			}
 			return nil
@@ -551,13 +558,13 @@ func (nw *namespacedWriter) createAndCopy(ctx context.Context, desc ocispec.Desc
 	if desc.Size > 0 {
 		ra, err := nw.provider.ReaderAt(ctx, nw.desc)
 		if err != nil {
+			w.Close()
 			return err
 		}
 		defer ra.Close()
 
 		if err := content.CopyReaderAt(w, ra, desc.Size); err != nil {
-			nw.w.Close()
-			nw.w = nil
+			w.Close()
 			return err
 		}
 	}
@@ -700,6 +707,10 @@ func (cs *contentStore) checkAccess(ctx context.Context, dgst digest.Digest) err
 	return view(ctx, cs.db, func(tx *bolt.Tx) error {
 		bkt := getBlobBucket(tx, ns, dgst)
 		if bkt == nil {
+			// try to find shareable bkt before erroring
+			bkt = getShareableBucket(tx, dgst)
+		}
+		if bkt == nil {
 			return errors.Wrapf(errdefs.ErrNotFound, "content digest %v", dgst)
 		}
 		return nil
@@ -708,7 +719,7 @@ func (cs *contentStore) checkAccess(ctx context.Context, dgst digest.Digest) err
 
 func validateInfo(info *content.Info) error {
 	for k, v := range info.Labels {
-		if err := labels.Validate(k, v); err == nil {
+		if err := labels.Validate(k, v); err != nil {
 			return errors.Wrapf(err, "info.Labels")
 		}
 	}

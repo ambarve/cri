@@ -1,5 +1,3 @@
-// +build windows
-
 /*
    Copyright The containerd Authors.
 
@@ -23,9 +21,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sync"
 
@@ -34,14 +30,16 @@ import (
 	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	exec "golang.org/x/sys/execabs"
 )
 
 const processorPipe = "STREAM_PROCESSOR_PIPE"
 
 // NewBinaryProcessor returns a binary processor for use with processing content streams
-func NewBinaryProcessor(ctx context.Context, imt, rmt string, stream StreamProcessor, name string, args []string, payload *types.Any) (StreamProcessor, error) {
+func NewBinaryProcessor(ctx context.Context, imt, rmt string, stream StreamProcessor, name string, args, env []string, payload *types.Any) (StreamProcessor, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, env...)
 
 	if payload != nil {
 		data, err := proto.Marshal(payload)
@@ -156,7 +154,7 @@ func (c *binaryProcessor) Close() error {
 }
 
 func getUiqPath() (string, error) {
-	dir, err := ioutil.TempDir("", "")
+	dir, err := os.MkdirTemp("", "")
 	if err != nil {
 		return "", err
 	}
