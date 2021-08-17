@@ -194,6 +194,11 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 		config.Annotations["containerd.io/snapshot/io.microsoft.vm.storage.scratch"] = "true"
 	}
 
+	_, ok := config.Annotations["containerd.io/snapshot/cri.scratch-location"]
+	if !ok && c.config.ContainerdConfig.SnapshotterScratchLocation != "" {
+		config.Annotations["containerd.io/snapshot/cri.scratch-location"] = c.config.ContainerdConfig.SnapshotterScratchLocation
+	}
+
 	snapshotterOpt := snapshots.WithLabels(config.Annotations)
 	opts := []containerd.NewContainerOpts{
 		containerd.WithImage(containerdImage),
