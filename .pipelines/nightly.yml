@@ -1,0 +1,37 @@
+schedules:
+  - cron: "0 2 * * 1,2,3,4,5" # run 7PM PST Mon-Fri.
+    displayName: Daily build
+    branches:
+      include:
+        - nightly
+    always: true
+
+variables:
+  WindowsContainerImage: cdpxwin1809.azurecr.io/global/vse2019:latest
+  LinuxContainerImage: cdpxlinux.azurecr.io/user/container-plat/golang:1.15.2
+
+resources:
+  repositories:
+    - repository: ob-templates
+      type: git
+      name: OneBranch.Pipelines/GovernedTemplates
+      ref: refs/heads/main
+    - repository: cplat
+      type: git
+      name: ContainerPlatform/ContainerPlatform
+      ref: refs/heads/master
+
+
+extends:
+  template: v2/OneBranch.NonOfficial.CrossPlat.yml@ob-templates
+  parameters:
+    git:
+      path: s/src/github.com/containerd/cri
+    globalSdl:
+      suppression:
+        suppressionFile: $(Build.SourcesDirectory)\.config\.gdnsuppress
+        suppressionSet: default
+    stages:
+      - template: shared-build-stages.yml@self
+        parameters:
+          Nightly: true
