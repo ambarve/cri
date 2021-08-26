@@ -19,6 +19,7 @@ limitations under the License.
 package server
 
 import (
+	"github.com/sirupsen/logrus"
 	"strconv"
 
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
@@ -172,7 +173,11 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to generate sandbox container spec")
 	}
-	log.G(ctx).Debugf("Sandbox container %q spec: %#+v", id, spew.NewFormatter(spec))
+	log.G(ctx).WithFields(logrus.Fields{
+		"id": id,
+		"runtimeHandler": runtimeHandler,
+		"spec": spew.NewFormatter(spec),
+	}).Debug("Sandbox container creation")
 
 	sandboxLabels := buildLabels(config.Labels, containerKindSandbox)
 

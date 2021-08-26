@@ -20,6 +20,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -169,7 +170,11 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		return nil, errors.Wrapf(err, "failed to generate container %q spec", id)
 	}
 
-	log.G(ctx).Debugf("Container %q spec: %#+v", id, spew.NewFormatter(spec))
+	log.G(ctx).WithFields(logrus.Fields{
+		"id": id,
+		"runtimeHandler": sandbox.RuntimeHandler,
+		"spec": spew.NewFormatter(spec),
+	}).Debug("Container creation")
 
 	// If the config field is specified, set the snapshotter label to reuse the pods
 	// scratch space. This only affects LCOW at the moment.
@@ -541,6 +546,8 @@ func (c *criService) addOCIMounts(ctx context.Context, g *generator, platform im
 			}
 			src = formattedSource
 			mountType = "virtual-disk"
+		} else if strings.HasPrefix(src, `evd://`) {
+			mountType = "extensible-virtual-disk"
 		} else {
 			formattedSource, err := filepath.EvalSymlinks(strings.Replace(src, "/", "\\", -1))
 			if err != nil {
