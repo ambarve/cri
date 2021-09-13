@@ -3,7 +3,7 @@
 # The parent template must include ContainerPlatform/ContainerPlatform repository with "cplat" alias
 parameters:
   name: Nightly
-  type: boolena
+  type: boolean
   default: false
 
 stages:
@@ -25,9 +25,9 @@ stages:
                   git config user.email "containerplat-dev@microsoft.com"
                   git config user.name "ContainerPlat"
                   # Pull upstream changes
-                  git remote add jterry https://github.com/jterry75/cri.git
-                  git fetch jterry
-                  git merge jterry/windows_port
+                  git remote add kevpar https://github.com/kevpar/cri.git
+                  git fetch kevpar
+                  git merge kevpar/windows_port
                 displayName: Merge upstream changes for nightly build
 
           - script: |

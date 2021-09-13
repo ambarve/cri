@@ -1,9 +1,9 @@
 schedules:
-  - cron: "0 2 * * 1,2,3,4,5" # run 7PM PST Mon-Fri.
+  - cron: "0 2 * * 2,3,4,5,6" # run 7PM PST Mon-Fri.
     displayName: Daily build
     branches:
       include:
-        - nightly
+        - master
     always: true
 
 variables:
