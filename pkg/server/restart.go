@@ -58,12 +58,14 @@ func (c *criService) recover(ctx context.Context) error {
 		return errors.Wrap(err, "failed to list sandbox containers")
 	}
 	for _, sandbox := range sandboxes {
+		l := log.G(ctx).WithField("containerID", sandbox.ID())
+		l.Debug("Loading sandbox")
 		sb, err := c.loadSandbox(ctx, sandbox)
 		if err != nil {
-			log.G(ctx).WithError(err).Errorf("Failed to load sandbox %q", sandbox.ID())
+			l.WithError(err).Errorf("Failed to load sandbox")
 			continue
 		}
-		log.G(ctx).Debugf("Loaded sandbox %+v", sb)
+		l.Debugf("Loaded sandbox")
 		if err := c.sandboxStore.Add(sb); err != nil {
 			return errors.Wrapf(err, "failed to add sandbox %q to store", sandbox.ID())
 		}
@@ -78,12 +80,14 @@ func (c *criService) recover(ctx context.Context) error {
 		return errors.Wrap(err, "failed to list containers")
 	}
 	for _, container := range containers {
+		l := log.G(ctx).WithField("containerID", container.ID())
+		l.Debug("Loading container")
 		cntr, err := c.loadContainer(ctx, container)
 		if err != nil {
-			log.G(ctx).WithError(err).Errorf("Failed to load container %q", container.ID())
+			l.WithError(err).Errorf("Failed to load container")
 			continue
 		}
-		log.G(ctx).Debugf("Loaded container %+v", cntr)
+		l.Debugf("Loaded container")
 		if err := c.containerStore.Add(cntr); err != nil {
 			return errors.Wrapf(err, "failed to add container %q to store", container.ID())
 		}
@@ -251,6 +255,11 @@ func (c *criService) loadContainer(ctx context.Context, cntr containerd.Containe
 				// Container is in exited/unknown state, return the status as it is.
 			}
 		} else {
+			// If we need to terminate any running containers, mark it as stopped here.
+			// This will cause it to be stopped via WithProcessKill in the switch case below.
+			if c.config.TerminateContainersOnRestart {
+				s.Status = containerd.Stopped
+			}
 			// Task status is found. Update container status based on the up-to-date task status.
 			switch s.Status {
 			case containerd.Created:
@@ -293,6 +302,7 @@ func (c *criService) loadContainer(ctx context.Context, cntr containerd.Containe
 					c.eventMonitor.startExitMonitor(context.Background(), id, status.Pid, exitCh)
 				}
 			case containerd.Stopped:
+				log.G(ctx).WithField("containerID", cntr.ID()).Info("Deleting dead container task")
 				// Task is stopped. Updata status and delete the task.
 				if _, err := t.Delete(ctx, containerd.WithProcessKill); err != nil && !errdefs.IsNotFound(err) {
 					return errors.Wrap(err, "failed to delete task")
@@ -374,7 +384,9 @@ func (c *criService) loadSandbox(ctx context.Context, cntr containerd.Container)
 			// Task does not exist, set sandbox state as NOTREADY.
 			status.State = sandboxstore.StateNotReady
 		} else {
-			if taskStatus.Status == containerd.Running {
+			// If we need to terminate running containers, treat it as stopped, so the else condition
+			// will clean it up via WithProcessKill.
+			if taskStatus.Status == containerd.Running && !c.config.TerminateContainersOnRestart {
 				// Wait for the task for sandbox monitor.
 				// wait is a long running background request, no timeout needed.
 				exitCh, err := t.Wait(ctrdutil.NamespacedContext())
@@ -390,6 +402,7 @@ func (c *criService) loadSandbox(ctx context.Context, cntr containerd.Container)
 					c.eventMonitor.startExitMonitor(context.Background(), meta.ID, status.Pid, exitCh)
 				}
 			} else {
+				log.G(ctx).WithField("sandboxID", cntr.ID()).Info("Deleting dead sandbox task")
 				// Task is not running. Delete the task and set sandbox state as NOTREADY.
 				if _, err := t.Delete(ctx, containerd.WithProcessKill); err != nil && !errdefs.IsNotFound(err) {
 					return status, errors.Wrap(err, "failed to delete task")

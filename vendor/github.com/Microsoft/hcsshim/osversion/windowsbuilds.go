@@ -35,4 +35,10 @@ const (
 
 	// V20H2 corresponds to Windows Server 20H2 (semi-annual channel).
 	V20H2 = 19042
+
+	// V21H1 corresponds to Windows Server 21H1 (semi-annual channel).
+	V21H1 = 19043
+
+	// V21H2 corresponds to Windows Server 2022 (ltsc2022).
+	V21H2 = 20348
 )

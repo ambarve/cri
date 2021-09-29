@@ -17,6 +17,7 @@ limitations under the License.
 package server
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -26,6 +27,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/plugin"
 	cni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
@@ -272,6 +274,15 @@ func (c *criService) Run() error {
 // TODO(random-liu): Make close synchronous.
 func (c *criService) Close() error {
 	logrus.Info("Stop CRI service")
+	if c.config.TerminateContainersOnRestart {
+		// We need to stop any running containers. Do this by stopping all pods.
+		ctx := context.Background()
+		for _, sandbox := range c.sandboxStore.List() {
+			if err := c.stopPodSandbox(ctx, sandbox); err != nil {
+				log.G(ctx).WithField("sandboxID", sandbox.Metadata.ID).Error("Failed to stop sandbox on shutdown")
+			}
+		}
+	}
 	c.eventMonitor.stop()
 	if err := c.streamServer.Stop(); err != nil {
 		return errors.Wrap(err, "failed to stop stream server")

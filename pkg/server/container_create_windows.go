@@ -20,7 +20,6 @@ package server
 
 import (
 	"fmt"
-	"github.com/sirupsen/logrus"
 	"net/url"
 	"path/filepath"
 	"regexp"
@@ -35,13 +34,6 @@ import (
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/snapshots"
-	"github.com/davecgh/go-spew/spew"
-	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/pkg/errors"
-	"golang.org/x/net/context"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-
 	"github.com/containerd/cri/pkg/annotations"
 	criconfig "github.com/containerd/cri/pkg/config"
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
@@ -49,6 +41,13 @@ import (
 	cio "github.com/containerd/cri/pkg/server/io"
 	containerstore "github.com/containerd/cri/pkg/store/container"
 	"github.com/containerd/cri/pkg/util"
+	"github.com/davecgh/go-spew/spew"
+	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
+	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 // CreateContainer creates a new container in the given PodSandbox.
@@ -171,9 +170,9 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	}
 
 	log.G(ctx).WithFields(logrus.Fields{
-		"id": id,
+		"id":             id,
 		"runtimeHandler": sandbox.RuntimeHandler,
-		"spec": spew.NewFormatter(spec),
+		"spec":           spew.NewFormatter(spec),
 	}).Debug("Container creation")
 
 	// If the config field is specified, set the snapshotter label to reuse the pods
@@ -401,7 +400,8 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			userstr = image.Config.User
 		}
 		if userstr != "" {
-			g.AddAnnotation("io.microsoft.lcow.userstr", userstr)
+			// For LCOW set the runtime specs Username field so we can take the user string and use this to find the uid:gid pair in the guest.
+			g.SetProcessUsername(userstr)
 		}
 		for _, group := range securityContext.GetSupplementalGroups() {
 			g.AddProcessAdditionalGid(uint32(group))
@@ -509,9 +509,15 @@ func (c *criService) addOCIMounts(ctx context.Context, g *generator, platform im
 				return errors.Errorf(`pipe mount.HostPath '%s' not supported for LCOW`, src)
 			}
 		} else if strings.HasPrefix(src, "sandbox://") {
-			// mount source prefix sandbox:// is only supported with lcow
+			// Sandbox mounts are supported for both Windows and Linux guests, but the type (bind) isn't needed to be set for Windows. This
+			// is just to tell runc what kind of mount to make for the mount provided in the runtime spec.
+			if platform.OS == "linux" {
+				mountType = "bind"
+			}
+		} else if strings.HasPrefix(src, "hugepages://") {
+			// mount source prefix hugepages:// is only supported with lcow
 			if platform.OS != "linux" || platform.Architecture != "amd64" {
-				return errors.Errorf(`sandbox://%s' mounts are only supported for LCOW`, src)
+				return errors.Errorf(`hugepages://%s mounts are only supported for LCOW`, src)
 			}
 			mountType = "bind"
 		} else if strings.Contains(src, "kubernetes.io~empty-dir") && platform.OS == "linux" && platform.Architecture == "amd64" {

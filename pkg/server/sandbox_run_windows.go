@@ -19,7 +19,6 @@ limitations under the License.
 package server
 
 import (
-	"github.com/sirupsen/logrus"
 	"strconv"
 
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
@@ -30,13 +29,6 @@ import (
 	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/snapshots"
-	"github.com/davecgh/go-spew/spew"
-	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
-	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
-	"github.com/pkg/errors"
-	"golang.org/x/net/context"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-
 	"github.com/containerd/cri/pkg/annotations"
 	criconfig "github.com/containerd/cri/pkg/config"
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
@@ -44,6 +36,13 @@ import (
 	"github.com/containerd/cri/pkg/netns"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 	"github.com/containerd/cri/pkg/util"
+	"github.com/davecgh/go-spew/spew"
+	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
+	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"golang.org/x/net/context"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
 // RunPodSandbox creates and starts a pod-level sandbox. Runtimes should ensure
@@ -174,9 +173,9 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 		return nil, errors.Wrap(err, "failed to generate sandbox container spec")
 	}
 	log.G(ctx).WithFields(logrus.Fields{
-		"id": id,
+		"id":             id,
 		"runtimeHandler": runtimeHandler,
-		"spec": spew.NewFormatter(spec),
+		"spec":           spew.NewFormatter(spec),
 	}).Debug("Sandbox container creation")
 
 	sandboxLabels := buildLabels(config.Labels, containerKindSandbox)
@@ -377,7 +376,8 @@ func (c *criService) generateSandboxContainerSpec(id string, config *runtime.Pod
 			userstr = imageConfig.User
 		}
 		if userstr != "" {
-			g.AddAnnotation("io.microsoft.lcow.userstr", userstr)
+			// For LCOW set the runtime specs Username field so we can take the user string and use this to find the uid:gid pair in the guest.
+			g.SetProcessUsername(userstr)
 		}
 
 		for _, group := range securityContext.GetSupplementalGroups() {
