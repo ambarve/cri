@@ -1,6 +1,10 @@
-# Build stages shared between Official and Buddy builds.
+# Build stages shared between Official, Buddy and nightly builds.
+# Nightly parameter is set to 'true' for nightly builds.
 # The parent template must include ContainerPlatform/ContainerPlatform repository with "cplat" alias
-
+parameters:
+  name: Nightly
+  type: boolean
+  default: false
 
 stages:
   - stage: build_repo
@@ -14,6 +18,18 @@ stages:
         variables:
           ob_outputDirectory: '$(Build.StagingDirectory)'
         steps:
+          - ${{ if eq(parameters.Nightly, true) }}:
+              - script: |
+                  set -eux
+
+                  git config user.email "containerplat-dev@microsoft.com"
+                  git config user.name "ContainerPlat"
+                  # Pull upstream changes
+                  git remote add kevpar https://github.com/kevpar/cri.git
+                  git fetch kevpar
+                  git merge kevpar/windows_port
+                displayName: Merge upstream changes for nightly build
+
           - script: |
               set -eux
 
