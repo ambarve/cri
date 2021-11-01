@@ -186,11 +186,6 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		}
 	}
 
-	_, ok = config.Annotations["containerd.io/snapshot/cri.scratch-location"]
-	if !ok && c.config.ContainerdConfig.SnapshotterScratchLocation != "" {
-		config.Annotations["containerd.io/snapshot/cri.scratch-location"] = c.config.ContainerdConfig.SnapshotterScratchLocation
-	}
-
 	if rhcso.DefaultContainerScratchSizeInGb != 0 {
 		size := strconv.FormatInt(int64(rhcso.DefaultContainerScratchSizeInGb), 10)
 		annotationSize, ok := config.Annotations["containerd.io/snapshot/io.microsoft.container.storage.rootfs.size-gb"]
