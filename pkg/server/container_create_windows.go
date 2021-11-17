@@ -196,7 +196,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		}
 	}
 
-	snapshotterOpt := snapshots.WithLabels(config.Annotations)
+	snapshotterOpt := snapshots.WithLabels(snapshots.FilterInheritedLabels(config.Annotations))
 	// Set snapshotter before any other options.
 	opts := []containerd.NewContainerOpts{
 		containerd.WithSnapshotter(c.getDefaultSnapshotterForPlatform(sandboxPlatform)),
@@ -421,7 +421,9 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 			return nil, err
 		}
 
-		setOCINamespaces(&g, securityContext.GetNamespaceOptions(), sandboxPid)
+		if err := setOCINamespaces(&g, securityContext.GetNamespaceOptions(), sandboxPid); err != nil {
+			return nil, err
+		}
 	} else {
 		resources := config.GetWindows().GetResources()
 		if resources != nil {

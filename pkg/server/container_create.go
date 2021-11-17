@@ -17,6 +17,7 @@ limitations under the License.
 package server
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -189,15 +190,38 @@ func setOCIBindMountsPrivileged(g *generator) {
 	spec.Linux.MaskedPaths = nil
 }
 
-// setOCINamespaces sets namespaces.
-func setOCINamespaces(g *generator, namespaces *runtime.NamespaceOption, sandboxPid uint32) {
-	g.AddOrReplaceLinuxNamespace(string(runtimespec.NetworkNamespace), getNetworkNamespace(sandboxPid)) // nolint: errcheck
-	g.AddOrReplaceLinuxNamespace(string(runtimespec.IPCNamespace), getIPCNamespace(sandboxPid))         // nolint: errcheck
-	g.AddOrReplaceLinuxNamespace(string(runtimespec.UTSNamespace), getUTSNamespace(sandboxPid))         // nolint: errcheck
-	// Do not share pid namespace if namespace mode is CONTAINER.
-	if namespaces.GetPid() != runtime.NamespaceMode_CONTAINER {
-		g.AddOrReplaceLinuxNamespace(string(runtimespec.PIDNamespace), getPIDNamespace(sandboxPid)) // nolint: errcheck
+// setOCINamespace sets the correct namespace value in the OCI spec based on the CRI namespace mode.
+func setOCINamespace(g *generator, mode runtime.NamespaceMode, nsName string, podNS string) error {
+	switch mode {
+	case runtime.NamespaceMode_POD:
+		// Use the pod's namespace.
+		return g.AddOrReplaceLinuxNamespace(nsName, podNS)
+	case runtime.NamespaceMode_CONTAINER:
+		// Empty path will cause the OCI runtime to create a new container ns.
+		return g.AddOrReplaceLinuxNamespace(nsName, "")
+	case runtime.NamespaceMode_NODE:
+		// NS not in the spec at all will cause it to inherit from the runtime (host).
+		return g.RemoveLinuxNamespace(nsName)
 	}
+	return fmt.Errorf("unsupported namespace mode for %s: %d", nsName, mode)
+}
+
+// setOCINamespaces sets namespaces.
+func setOCINamespaces(g *generator, namespaces *runtime.NamespaceOption, sandboxPid uint32) error {
+	if err := setOCINamespace(g, namespaces.GetNetwork(), string(runtimespec.NetworkNamespace), getNetworkNamespace(sandboxPid)); err != nil {
+		return err
+	}
+	if err := setOCINamespace(g, namespaces.GetIpc(), string(runtimespec.IPCNamespace), getIPCNamespace(sandboxPid)); err != nil {
+		return err
+	}
+	if err := setOCINamespace(g, namespaces.GetPid(), string(runtimespec.PIDNamespace), getPIDNamespace(sandboxPid)); err != nil {
+		return err
+	}
+	// CRI does not have a namespace option for UTS, so use the pod's namespace.
+	if err := setOCINamespace(g, runtime.NamespaceMode_POD, string(runtimespec.UTSNamespace), getUTSNamespace(sandboxPid)); err != nil {
+		return err
+	}
+	return nil
 }
 
 // generateUserString generates valid user string based on OCI Image Spec

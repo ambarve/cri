@@ -5,13 +5,15 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/binary"
-	"github.com/pkg/errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"unsafe"
+
+	"github.com/pkg/errors"
 
 	"github.com/Microsoft/hcsshim/ext4/dmverity"
 	"github.com/Microsoft/hcsshim/ext4/internal/compactext4"
@@ -65,16 +67,17 @@ func MaximumDiskSize(size int64) Option {
 const (
 	whiteoutPrefix = ".wh."
 	opaqueWhiteout = ".wh..wh..opq"
-	ext4blocksize  = compactext4.BlockSize
+	ext4BlockSize  = compactext4.BlockSize
 )
 
-// Convert writes a compact ext4 file system image that contains the files in the
+// ConvertTarToExt4 writes a compact ext4 file system image that contains the files in the
 // input tar stream.
-func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
+func ConvertTarToExt4(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 	var p params
 	for _, opt := range options {
 		opt(&p)
 	}
+
 	t := tar.NewReader(bufio.NewReader(r))
 	fs := compactext4.NewWriter(w, p.ext4opts...)
 	for {
@@ -86,6 +89,10 @@ func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 			return err
 		}
 
+		if err = fs.MakeParents(hdr.Name); err != nil {
+			return errors.Wrapf(err, "failed to ensure parent directories for %s", hdr.Name)
+		}
+
 		if p.convertWhiteout {
 			dir, name := path.Split(hdr.Name)
 			if strings.HasPrefix(name, whiteoutPrefix) {
@@ -93,12 +100,12 @@ func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 					// Update the directory with the appropriate xattr.
 					f, err := fs.Stat(dir)
 					if err != nil {
-						return err
+						return errors.Wrapf(err, "failed to stat parent directory of whiteout %s", hdr.Name)
 					}
 					f.Xattrs["trusted.overlay.opaque"] = []byte("y")
 					err = fs.Create(dir, f)
 					if err != nil {
-						return err
+						return errors.Wrapf(err, "failed to create opaque dir %s", hdr.Name)
 					}
 				} else {
 					// Create an overlay-style whiteout.
@@ -109,7 +116,7 @@ func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 					}
 					err = fs.Create(path.Join(dir, name[len(whiteoutPrefix):]), f)
 					if err != nil {
-						return err
+						return errors.Wrapf(err, "failed to create whiteout file for %s", hdr.Name)
 					}
 				}
 
@@ -161,7 +168,7 @@ func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 			}
 			f.Mode &= ^compactext4.TypeMask
 			f.Mode |= typ
-			err = fs.CreateWithParents(hdr.Name, f)
+			err = fs.Create(hdr.Name, f)
 			if err != nil {
 				return err
 			}
@@ -171,54 +178,53 @@ func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 			}
 		}
 	}
-	err := fs.Close()
-	if err != nil {
+	return fs.Close()
+}
+
+// Convert wraps ConvertTarToExt4 and conditionally computes (and appends) the file image's cryptographic
+// hashes (merkle tree) or/and appends a VHD footer.
+func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
+	var p params
+	for _, opt := range options {
+		opt(&p)
+	}
+
+	if err := ConvertTarToExt4(r, w, options...); err != nil {
 		return err
 	}
 
 	if p.appendDMVerity {
+		// Rewind the stream for dm-verity processing
+		if _, err := w.Seek(0, io.SeekStart); err != nil {
+			return err
+		}
+
+		merkleTree, err := dmverity.MerkleTree(bufio.NewReaderSize(w, dmverity.MerkleTreeBufioSize))
+		if err != nil {
+			return errors.Wrap(err, "failed to build merkle tree")
+		}
+
+		// Write dm-verity super-block and then the merkle tree after the end of the
+		// ext4 filesystem
 		ext4size, err := w.Seek(0, io.SeekEnd)
 		if err != nil {
 			return err
 		}
 
-		// Rewind the stream and then read it all into a []byte for
-		// dmverity processing
-		_, err = w.Seek(0, io.SeekStart)
-		if err != nil {
-			return err
-		}
-		data, err := ioutil.ReadAll(w)
-		if err != nil {
+		superBlock := dmverity.NewDMVeritySuperblock(uint64(ext4size))
+		if err = binary.Write(w, binary.LittleEndian, superBlock); err != nil {
 			return err
 		}
 
-		mtree, err := dmverity.MerkleTree(data)
-		if err != nil {
-			return errors.Wrap(err, "failed to build merkle tree")
+		// pad the super-block
+		sbsize := int(unsafe.Sizeof(*superBlock))
+		padding := bytes.Repeat([]byte{0}, ext4BlockSize-(sbsize%ext4BlockSize))
+		if _, err = w.Write(padding); err != nil {
+			return err
 		}
 
-		// Write dmverity superblock and then the merkle tree after the end of the
-		// ext4 filesystem
-		_, err = w.Seek(0, io.SeekEnd)
-		if err != nil {
-			return err
-		}
-		superblock := dmverity.NewDMVeritySuperblock(uint64(ext4size))
-		err = binary.Write(w, binary.LittleEndian, superblock)
-		if err != nil {
-			return err
-		}
-		// pad the superblock
-		sbsize := int(unsafe.Sizeof(*superblock))
-		padding := bytes.Repeat([]byte{0}, ext4blocksize-(sbsize%ext4blocksize))
-		_, err = w.Write(padding)
-		if err != nil {
-			return err
-		}
 		// write the tree
-		_, err = w.Write(mtree)
-		if err != nil {
+		if _, err = w.Write(merkleTree); err != nil {
 			return err
 		}
 	}
@@ -267,4 +273,38 @@ func ReadExt4SuperBlock(vhdPath string) (*format.SuperBlock, error) {
 		return nil, err
 	}
 	return &sb, nil
+}
+
+// ConvertAndComputeRootDigest writes a compact ext4 file system image that contains the files in the
+// input tar stream, computes the resulting file image's cryptographic hashes (merkle tree) and returns
+// merkle tree root digest. Convert is called with minimal options: ConvertWhiteout and MaximumDiskSize
+// set to dmverity.RecommendedVHDSizeGB.
+func ConvertAndComputeRootDigest(r io.Reader) (string, error) {
+	out, err := ioutil.TempFile("", "")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary file: %s", err)
+	}
+	defer func() {
+		_ = os.Remove(out.Name())
+	}()
+
+	options := []Option{
+		ConvertWhiteout,
+		MaximumDiskSize(dmverity.RecommendedVHDSizeGB),
+	}
+	if err := ConvertTarToExt4(r, out, options...); err != nil {
+		return "", fmt.Errorf("failed to convert tar to ext4: %s", err)
+	}
+
+	if _, err := out.Seek(0, io.SeekStart); err != nil {
+		return "", fmt.Errorf("failed to seek start on temp file when creating merkle tree: %s", err)
+	}
+
+	tree, err := dmverity.MerkleTree(bufio.NewReaderSize(out, dmverity.MerkleTreeBufioSize))
+	if err != nil {
+		return "", fmt.Errorf("failed to create merkle tree: %s", err)
+	}
+
+	hash := dmverity.RootHash(tree)
+	return fmt.Sprintf("%x", hash), nil
 }

@@ -194,7 +194,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 		config.Annotations["containerd.io/snapshot/io.microsoft.vm.storage.scratch"] = "true"
 	}
 
-	snapshotterOpt := snapshots.WithLabels(config.Annotations)
+	snapshotterOpt := snapshots.WithLabels(snapshots.FilterInheritedLabels(config.Annotations))
 	opts := []containerd.NewContainerOpts{
 		containerd.WithImage(containerdImage),
 		containerd.WithSnapshotter(c.getDefaultSnapshotterForPlatform(sandboxPlatform)),
