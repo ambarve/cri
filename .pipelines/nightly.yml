@@ -1,3 +1,5 @@
+trigger: none
+
 schedules:
   - cron: "0 2 * * 2,3,4,5,6" # run 7PM PST Mon-Fri.
     displayName: Daily build

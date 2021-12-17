@@ -1,3 +1,6 @@
+trigger:
+  - master
+
 schedules:
   - cron: "0 2 * * 6" # run 7PM PST Fri.
     displayName: Weekly SDL Compliance
