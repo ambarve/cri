@@ -3,17 +3,14 @@ package tar2ext4
 import (
 	"archive/tar"
 	"bufio"
-	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/pkg/errors"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"strings"
-	"unsafe"
-
-	"github.com/pkg/errors"
 
 	"github.com/Microsoft/hcsshim/ext4/dmverity"
 	"github.com/Microsoft/hcsshim/ext4/internal/compactext4"
@@ -67,7 +64,6 @@ func MaximumDiskSize(size int64) Option {
 const (
 	whiteoutPrefix = ".wh."
 	opaqueWhiteout = ".wh..wh..opq"
-	ext4BlockSize  = compactext4.BlockSize
 )
 
 // ConvertTarToExt4 writes a compact ext4 file system image that contains the files in the
@@ -194,50 +190,13 @@ func Convert(r io.Reader, w io.ReadWriteSeeker, options ...Option) error {
 	}
 
 	if p.appendDMVerity {
-		// Rewind the stream for dm-verity processing
-		if _, err := w.Seek(0, io.SeekStart); err != nil {
-			return err
-		}
-
-		merkleTree, err := dmverity.MerkleTree(bufio.NewReaderSize(w, dmverity.MerkleTreeBufioSize))
-		if err != nil {
-			return errors.Wrap(err, "failed to build merkle tree")
-		}
-
-		// Write dm-verity super-block and then the merkle tree after the end of the
-		// ext4 filesystem
-		ext4size, err := w.Seek(0, io.SeekEnd)
-		if err != nil {
-			return err
-		}
-
-		superBlock := dmverity.NewDMVeritySuperblock(uint64(ext4size))
-		if err = binary.Write(w, binary.LittleEndian, superBlock); err != nil {
-			return err
-		}
-
-		// pad the super-block
-		sbsize := int(unsafe.Sizeof(*superBlock))
-		padding := bytes.Repeat([]byte{0}, ext4BlockSize-(sbsize%ext4BlockSize))
-		if _, err = w.Write(padding); err != nil {
-			return err
-		}
-
-		// write the tree
-		if _, err = w.Write(merkleTree); err != nil {
+		if err := dmverity.ComputeAndWriteHashDevice(w, w); err != nil {
 			return err
 		}
 	}
 
 	if p.appendVhdFooter {
-		size, err := w.Seek(0, io.SeekEnd)
-		if err != nil {
-			return err
-		}
-		err = binary.Write(w, binary.BigEndian, makeFixedVHDFooter(size))
-		if err != nil {
-			return err
-		}
+		return ConvertToVhd(w)
 	}
 	return nil
 }
@@ -271,6 +230,10 @@ func ReadExt4SuperBlock(vhdPath string) (*format.SuperBlock, error) {
 	var sb format.SuperBlock
 	if err := binary.Read(vhd, binary.LittleEndian, &sb); err != nil {
 		return nil, err
+	}
+	// Make sure the magic bytes are correct.
+	if sb.Magic != format.SuperBlockMagic {
+		return nil, errors.New("not an ext4 file system")
 	}
 	return &sb, nil
 }
@@ -307,4 +270,13 @@ func ConvertAndComputeRootDigest(r io.Reader) (string, error) {
 
 	hash := dmverity.RootHash(tree)
 	return fmt.Sprintf("%x", hash), nil
+}
+
+// ConvertToVhd converts given io.WriteSeeker to VHD, by appending the VHD footer with a fixed size.
+func ConvertToVhd(w io.WriteSeeker) error {
+	size, err := w.Seek(0, io.SeekEnd)
+	if err != nil {
+		return err
+	}
+	return binary.Write(w, binary.BigEndian, makeFixedVHDFooter(size))
 }
