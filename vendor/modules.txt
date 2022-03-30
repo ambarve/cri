@@ -69,7 +69,7 @@ github.com/containerd/cgroups/v2
 github.com/containerd/cgroups/v2/stats
 # github.com/containerd/console v1.0.3
 github.com/containerd/console
-# github.com/containerd/containerd v1.5.9 => github.com/kevpar/containerd v1.2.1-0.20220208224704-02a7be48de8d
+# github.com/containerd/containerd v1.5.9 => github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa
 ## explicit
 github.com/containerd/containerd
 github.com/containerd/containerd/archive
@@ -711,6 +711,6 @@ k8s.io/utils/integer
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220208224704-02a7be48de8d
+# github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa
 # github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef
 # google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63

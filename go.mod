@@ -43,7 +43,7 @@ require (
 )
 
 replace (
-	github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220208224704-02a7be48de8d
+	github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa
 	github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef // fork
 	// replace genproto and grpc to prevent panic in ttrpc module
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63

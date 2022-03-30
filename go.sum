@@ -404,8 +404,8 @@ github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/X
 github.com/jtolds/gls v4.20.0+incompatible/go.mod h1:QJZ7F/aHp+rZTRtaJ1ow/lLfFfVYBRgL+9YlvaHOwJU=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
-github.com/kevpar/containerd v1.2.1-0.20220208224704-02a7be48de8d h1:b87epDuJT3zA/UHZGeiDfiItYSP7yqQQfEeveoYAHXA=
-github.com/kevpar/containerd v1.2.1-0.20220208224704-02a7be48de8d/go.mod h1:fD0Qdoc8Ds4LUOPS3x6coteK5j1aETjTiF6LB+3nfXM=
+github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa h1:7BaC2HF94mqPljvipHM5rjTd5XSIQJj2tC/LhypzT4Q=
+github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa/go.mod h1:fD0Qdoc8Ds4LUOPS3x6coteK5j1aETjTiF6LB+3nfXM=
 github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef h1:AzZPqhoAJvckY8DXmqGiDdfItEWNpzVvZKycgMLhuMY=
 github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef/go.mod h1:Ys2Lg/DB6nWAQwe7K08XpeG87Z83MeRlb4s16WkJHEk=
 github.com/kisielk/errcheck v1.1.0/go.mod h1:EZBBE59ingxPouuu3KfxchcWSUPOHkagtvWXihfKN4Q=

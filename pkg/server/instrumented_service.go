@@ -25,7 +25,7 @@ import (
 
 	api "github.com/containerd/cri/pkg/api/v1"
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // instrumentedService wraps service with containerd namespace and logs.

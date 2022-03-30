@@ -3,7 +3,7 @@ package server
 import (
 	"github.com/containerd/containerd/errdefs"
 	"golang.org/x/net/context"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func (c *criService) PodSandboxStats(ctx context.Context, req *runtime.PodSandboxStatsRequest) (*runtime.PodSandboxStatsResponse, error) {

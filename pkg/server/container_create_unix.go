@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -41,7 +42,7 @@ import (
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 	"golang.org/x/sys/unix"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	"github.com/containerd/cri/pkg/annotations"
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
