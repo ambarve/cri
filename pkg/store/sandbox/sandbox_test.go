@@ -153,3 +153,44 @@ func TestSandboxStore(t *testing.T) {
 		assert.Equal(store.ErrNotExist, err)
 	}
 }
+
+func TestSandboxStoreUpdate(t *testing.T) {
+	assert := assertlib.New(t)
+	s := NewStore()
+	sandbox := NewSandbox(
+		Metadata{
+			ID:   "1",
+			Name: "Sandbox-1",
+			Config: &runtime.PodSandboxConfig{
+				Metadata: &runtime.PodSandboxMetadata{
+					Name:      "TestPod-1",
+					Uid:       "TestUid-1",
+					Namespace: "TestNamespace-1",
+					Attempt:   1,
+				},
+			},
+			NetNSPath: "TestNetNS-1",
+		},
+		Status{State: StateReady},
+	)
+
+	assert.NoError(s.Add(sandbox))
+
+	u := func(sb Sandbox) (Sandbox, error) {
+		sb.NetNSPath = "/arbitrary/ns/path"
+		sb.IP = "192.168.16.32"
+		return sb, nil
+	}
+	t.Logf("update should not fail")
+	_, err := s.Update("1", u)
+	assert.NoError(err)
+
+	// the new container, to test against
+	sandbox2, _ := u(sandbox)
+
+	t.Logf("getting updated sandbox should not fail")
+	sb2, err := s.Get("1")
+	assert.NoError(err)
+	assert.Equal(sandbox2, sb2)
+
+}

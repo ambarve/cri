@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -41,7 +42,6 @@ import (
 	cio "github.com/containerd/cri/pkg/server/io"
 	containerstore "github.com/containerd/cri/pkg/store/container"
 	"github.com/containerd/cri/pkg/util"
-	"github.com/davecgh/go-spew/spew"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -57,7 +57,9 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		config.Annotations = make(map[string]string)
 	}
 
-	log.G(ctx).Debugf("Container config %+v", config)
+	log.G(ctx).
+		WithField("config", fmt.Sprintf("%+v", c.Scrub(*config))).
+		Debug("Container config")
 	sandboxConfig := r.GetSandboxConfig()
 	sandbox, err := c.sandboxStore.Get(r.GetPodSandboxId())
 	if err != nil {
@@ -172,7 +174,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 	log.G(ctx).WithFields(logrus.Fields{
 		"id":             id,
 		"runtimeHandler": sandbox.RuntimeHandler,
-		"spec":           spew.NewFormatter(spec),
+		"spec":           fmt.Sprintf("%+v", c.Scrub(*spec)),
 	}).Debug("Container creation")
 
 	// If the config field is specified, set the snapshotter label to reuse the pods

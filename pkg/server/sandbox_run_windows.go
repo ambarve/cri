@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -34,6 +35,7 @@ import (
 	customopts "github.com/containerd/cri/pkg/containerd/opts"
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	"github.com/containerd/cri/pkg/netns"
+	"github.com/containerd/cri/pkg/registrar"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 	"github.com/containerd/cri/pkg/util"
 	"github.com/davecgh/go-spew/spew"
@@ -54,13 +56,39 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	}
 	log.G(ctx).Debugf("Sandbox config %+v", config)
 
-	// Generate unique id and name for the sandbox and reserve the name.
-	id := util.GenerateID()
 	metadata := config.GetMetadata()
 	if metadata == nil {
 		return nil, errors.New("sandbox config must include metadata")
 	}
 	name := makeSandboxName(metadata)
+
+	// check if this is actually a restart
+	id, err := c.sandboxNameIndex.GetKey(name)
+	if err == nil && config.Annotations[annotations.EnableReset] == "true" {
+		log.G(ctx).WithFields(logrus.Fields{
+			"sandboxName": name,
+			"sandboxID":   id,
+		}).Info("reseting existing sandbox")
+		sandbox, err := c.sandboxStore.Get(id)
+		if err != nil {
+			return nil, errors.Wrapf(err, "an error occurred when try to find sandbox %q", id)
+		}
+		if err = c.resetSandbox(ctx, sandbox); err != nil {
+			return nil, errors.Wrapf(err, "could not reset sandbox %q", id)
+		}
+		return &runtime.RunPodSandboxResponse{PodSandboxId: id}, nil
+	} else if err != nil && err != registrar.ErrKeyNotReserved {
+		// Resets are a rare case, so if another error arises, log it and see if reservation fails
+		//  to preserve the common case.
+		// This could mean the sandbox already exists but we couldn't check, in which case
+		//  the reservation should still fail or error out similarly
+		log.G(ctx).WithError(err).
+			WithField("sandboxName", name).
+			Warning("failed to check if sandbox name was previously reserved")
+	}
+
+	// Generate unique id and name for the sandbox and reserve the name.
+	id = util.GenerateID()
 	log.G(ctx).Debugf("Generated id %q for sandbox %q", id, name)
 	// Reserve the sandbox name to avoid concurrent `RunPodSandbox` request starting the
 	// same sandbox.

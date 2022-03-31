@@ -57,6 +57,10 @@ func NewSandbox(metadata Metadata, status Status) Sandbox {
 	return s
 }
 
+// UpdateFunc is function used to update the container. If there
+// is an error, the update will be rolled back.
+type SandboxUpdateFunc func(Sandbox) (Sandbox, error)
+
 // Store stores all sandboxes.
 type Store struct {
 	lock      sync.RWMutex
@@ -102,6 +106,31 @@ func (s *Store) Get(id string) (Sandbox, error) {
 		return sb, nil
 	}
 	return Sandbox{}, store.ErrNotExist
+}
+
+// Update replaced the sandbox with the result of the function.
+// Returns store.ErrNotExist if the sandbox doesn't exist.
+func (s *Store) Update(id string, u SandboxUpdateFunc) (Sandbox, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	id, err := s.idIndex.Get(id)
+	if err != nil {
+		if err == truncindex.ErrNotExist {
+			err = store.ErrNotExist
+		}
+		return Sandbox{}, err
+	}
+	sb, ok := s.sandboxes[id]
+	if !ok {
+		return Sandbox{}, store.ErrNotExist
+	}
+	sbp, err := u(sb)
+	if err != nil {
+		return Sandbox{}, err
+	}
+	s.sandboxes[id] = sbp
+	return sbp, nil
 }
 
 // List lists all sandboxes.

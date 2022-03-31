@@ -22,7 +22,7 @@ set -o pipefail
 ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"/..
 API_ROOT="${ROOT}/${API_PATH-"pkg/api/v1"}"
 
-go get k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo
+go install k8s.io/code-generator/cmd/go-to-protobuf/protoc-gen-gogo@latest
 if ! which protoc-gen-gogo >/dev/null; then
   echo "GOPATH is not in PATH"
   exit 1

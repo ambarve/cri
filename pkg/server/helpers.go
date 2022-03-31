@@ -52,6 +52,8 @@ import (
 const (
 	// errorStartReason is the exit reason when fails to start container.
 	errorStartReason = "StartError"
+	// errorResetReason is the exit reason when fails to reset container.
+	errorResetReason = "ResetError"
 	// errorStartExitCode is the exit code when fails to start container.
 	// 128 is the same with Docker's behavior.
 	errorStartExitCode = 128

@@ -30,6 +30,7 @@ import (
 	"golang.org/x/net/context"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
+	"github.com/containerd/cri/pkg/annotations"
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	cioutil "github.com/containerd/cri/pkg/ioutil"
 	cio "github.com/containerd/cri/pkg/server/io"
@@ -49,7 +50,21 @@ func (c *criService) StartContainer(ctx context.Context, r *runtime.StartContain
 	container := cntr.Container
 	config := meta.Config
 
-	// Set starting state to prevent other start/remove operations against this container
+	// Check if container resets are allowed
+	if cntr.Status.Get().State() == runtime.ContainerState_CONTAINER_EXITED &&
+		config.Annotations[annotations.EnableReset] == "true" {
+		log.G(ctx).WithField("containerID", id).Infof("resetting container before starting")
+		if err := c.resetContainer(ctx, cntr); err != nil {
+			return nil, errors.Wrapf(err, "failed to reset container %q", id)
+		}
+		// get updated container
+		cntr, err = c.containerStore.Get(r.GetContainerId())
+		if err != nil {
+			return nil, errors.Wrapf(err, "an error occurred when try to find container %q", r.GetContainerId())
+		}
+	}
+
+	// Set starting state to prevent other start/remove/reset operations against this container
 	// while it's being started.
 	if err := setContainerStarting(cntr); err != nil {
 		return nil, errors.Wrapf(err, "failed to set starting state for container %q", id)
@@ -157,6 +172,9 @@ func setContainerStarting(container containerstore.Container) error {
 		// Do not start the container when there is a removal in progress.
 		if status.Removing {
 			return status, errors.New("container is in removing state, can't be started")
+		}
+		if status.Resetting {
+			return status, errors.New("container is in resetting state; retry after reset succeeds")
 		}
 		if status.Starting {
 			return status, errors.New("container is already in starting state")

@@ -46,13 +46,13 @@ import (
 //   Exec    +--------+         |         |           |
 //  Attach   |        | RUNNING <---------+           |
 // LogReopen +-------->         |         |           |
-//                    +----+----+         |           |
-//                         |              |           |
-//                         | Stop/Exit    |           |
-//                         |              |           |
-//                    +----v----+         |           |
-//                    |         <---------+      +----v----+
-//                    |  EXITED |                |         |
+//           |        +----+----+         |           |
+//           |             |              |           |
+//           | Reset       | Stop/Exit    |           |
+//           |             |              |           |
+//           |        +----v----+         |           |
+//           |        |         <---------+      +----v----+
+//           +--------+  EXITED |                |         |
 //                    |         <----------------+ UNKNOWN |
 //                    +----+----+       Stop     |         |
 //                         |                     +---------+
@@ -92,6 +92,9 @@ type Status struct {
 	// This field doesn't need to be checkpointed.
 	// TODO(now): Add unit test.
 	Starting bool `json:"-"`
+	// Resetting indicates that the container is in resetting state.
+	// This field doesn't need to be checkpointed.
+	Resetting bool `json:"-"`
 	// Removing indicates that the container is in removing state.
 	// This field doesn't need to be checkpointed.
 	Removing bool `json:"-"`

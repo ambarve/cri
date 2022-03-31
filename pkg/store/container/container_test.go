@@ -175,6 +175,54 @@ func TestContainerStore(t *testing.T) {
 	}
 }
 
+func TestContainerStoreUpdate(t *testing.T) {
+	assert := assertlib.New(t)
+	s := NewStore()
+	container, err := NewContainer(
+		Metadata{
+			ID:        "1",
+			Name:      "Container-1",
+			SandboxID: "Sandbox-1",
+			Config: &runtime.ContainerConfig{
+				Metadata: &runtime.ContainerMetadata{
+					Name:    "TestPod-1",
+					Attempt: 1,
+				},
+			},
+			ImageRef:   "TestImage-1",
+			StopSignal: "SIGTERM",
+			LogPath:    "/test/log/path/1",
+		},
+		WithFakeStatus(Status{
+			Pid:        1,
+			CreatedAt:  time.Now().UnixNano(),
+			StartedAt:  time.Now().UnixNano(),
+			FinishedAt: time.Now().UnixNano(),
+			ExitCode:   1,
+			Reason:     "TestReason-1",
+			Message:    "TestMessage-1",
+		}),
+	)
+	assert.NoError(err)
+	assert.NoError(s.Add(container))
+	u := func(c Container) (Container, error) {
+		c.LogPath = "/test/log/path/2"
+		c.ImageRef = "TestImage-2"
+		return c, nil
+	}
+	t.Logf("update should not fail")
+	_, err = s.Update("1", u)
+	assert.NoError(err)
+
+	// the new container, to test against
+	container2, _ := u(container)
+
+	t.Logf("getting updated container should not fail")
+	c2, err := s.Get("1")
+	assert.NoError(err)
+	assert.Equal(container2, c2)
+}
+
 func TestWithContainerIO(t *testing.T) {
 	meta := Metadata{
 		ID:        "1",

@@ -19,6 +19,7 @@ package containerd
 import (
 	"time"
 
+	"github.com/containerd/containerd/diff"
 	"github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/platforms"
 	"github.com/containerd/containerd/remotes"
@@ -176,6 +177,12 @@ func WithPullLabels(labels map[string]string) RemoteOpt {
 	}
 }
 
+// WithLCOWLayerIntegrity enables integrity protection of LCOW layers by setting appropriate
+// RemoteContext label
+func WithLCOWLayerIntegrity() RemoteOpt {
+	return WithPullLabel(diff.LCOWLayerIntegrityEnabled, "true")
+}
+
 // WithChildLabelMap sets the map function used to define the labels set
 // on referenced child content in the content store. This can be used
 // to overwrite the default GC labels or filter which labels get set
@@ -232,6 +239,17 @@ func WithMaxConcurrentDownloads(max int) RemoteOpt {
 func WithAllMetadata() RemoteOpt {
 	return func(_ *Client, c *RemoteContext) error {
 		c.AllMetadata = true
+		return nil
+	}
+}
+
+// WithDisableSameLayerUnpack sets the option that disallows Containerd from unpacking the same layer in parallel. This helps de-duplicate work
+// if pulling multiple images that share layers.
+func WithDisableSameLayerUnpack() RemoteOpt {
+	return func(client *Client, c *RemoteContext) error {
+		c.DisableSameLayerUnpack = true
+		c.SnapshotterOpts = append(c.SnapshotterOpts,
+			snapshots.WithLabels(map[string]string{"containerd.io/snapshot/disable-same-unpack": ""}))
 		return nil
 	}
 }

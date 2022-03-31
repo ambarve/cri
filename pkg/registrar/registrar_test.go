@@ -52,3 +52,31 @@ func TestRegistrar(t *testing.T) {
 	t.Logf("should be able to reserve same name/key name<->key")
 	assert.NoError(r.Reserve("same-name-id", "same-name-id"))
 }
+
+func TestRegistrarGetKey(t *testing.T) {
+	r := NewRegistrar()
+	assert := assertlib.New(t)
+
+	t.Logf("populating registar")
+	assert.NoError(r.Reserve("test-name-1", "test-id-1"))
+	assert.NoError(r.Reserve("test-name-2", "test-id-2"))
+
+	t.Logf("getting existing key should not fail")
+	k, err := r.GetKey("test-name-1")
+	assert.NoError(err)
+	assert.Equal("test-id-1", k)
+
+	r.ReleaseByName("test-name-1")
+
+	t.Logf("getting released key should fail")
+	_, err = r.GetKey("test-name-1")
+	assert.EqualError(err, ErrKeyNotReserved.Error())
+
+	t.Logf("getting non-reserved key should fail")
+	_, err = r.GetKey("test-name-3")
+	assert.EqualError(err, ErrKeyNotReserved.Error())
+
+	t.Logf("getting key by empty name should fail")
+	_, err = r.GetKey("")
+	assert.Error(err)
+}

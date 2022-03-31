@@ -72,7 +72,7 @@ func setProcessArgs(g *generator, isWindows bool, argsEscaped bool, args []strin
 	logrus.WithFields(logrus.Fields{
 		"isWindows":   isWindows,
 		"argsEscaped": argsEscaped,
-		"args":        args,
+		"args":        fmt.Sprintf("%#+v", args),
 	}).Info("Setting process args on OCI spec")
 	if g.Config == nil {
 		g.Config = &runtimespec.Spec{}

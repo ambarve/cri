@@ -35,4 +35,8 @@ const (
 	// UntrustedWorkload is the sandbox annotation for untrusted workload. Untrusted
 	// workload can only run on dedicated runtime for untrusted workload.
 	UntrustedWorkload = "io.kubernetes.cri.untrusted-workload"
+
+	// EnableReset is a sandbox and container annotation to allow reseting a container or pod that
+	// has already exited back to a ready/created state
+	EnableReset = "io.microsoft.cri.enablereset"
 )

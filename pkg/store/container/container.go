@@ -96,6 +96,10 @@ func (c *Container) Delete() error {
 	return c.Status.Delete()
 }
 
+// UpdateFunc is function used to update the container. If there
+// is an error, the update will be rolled back.
+type ContainerUpdateFunc func(Container) (Container, error)
+
 // Store stores all Containers.
 type Store struct {
 	lock       sync.RWMutex
@@ -142,6 +146,33 @@ func (s *Store) Get(id string) (Container, error) {
 		return c, nil
 	}
 	return Container{}, store.ErrNotExist
+}
+
+// Update replaced the container with the result of the function.
+// Returns store.ErrNotExist if the container doesn't exist.
+//
+// Updating the container's ID will not affect the ID it is stored under in the store.
+func (s *Store) Update(id string, u ContainerUpdateFunc) (Container, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	id, err := s.idIndex.Get(id)
+	if err != nil {
+		if err == truncindex.ErrNotExist {
+			err = store.ErrNotExist
+		}
+		return Container{}, err
+	}
+	c, ok := s.containers[id]
+	if !ok {
+		return Container{}, store.ErrNotExist
+	}
+	cp, err := u(c)
+	if err != nil {
+		return Container{}, err
+	}
+	s.containers[id] = cp
+	return cp, nil
 }
 
 // List lists all containers.

@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -19,6 +20,7 @@ limitations under the License.
 package netns
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/Microsoft/hcsshim/hcn"
@@ -47,6 +49,26 @@ func NewNetNS() (*NetNS, error) {
 	return &NetNS{path: string(hcnNamespace.Id)}, nil
 }
 
+// NewNetNSWithPath creates a network namespace for the sandbox with the given path.
+// removeExisting toggles removing any prior existing namespaces with the same path.
+func NewNetNSWithPath(path string, removeExisting bool) (*NetNS, error) {
+	if removeExisting {
+		if err := RemoveByPath(path); err != nil {
+			return nil, err
+		}
+	}
+	temp := hcn.HostComputeNamespace{Id: path}
+	hcnNamespace, err := temp.Create()
+	if err != nil {
+		return nil, err
+	}
+
+	if hcnNamespace.Id != path {
+		return nil, fmt.Errorf("recreated network namespace is %q, not %q", hcnNamespace.Id, path)
+	}
+	return &NetNS{path: string(hcnNamespace.Id)}, nil
+}
+
 // LoadNetNS loads existing network namespace. It returns ErrClosedNetNS
 // if the network namespace has already been closed or not found.
 func LoadNetNS(path string) *NetNS {
@@ -65,19 +87,25 @@ func (n *NetNS) Remove() error {
 	n.Lock()
 	defer n.Unlock()
 	if !n.closed {
-		hcnNamespace, err := hcn.GetNamespaceByID(n.path)
-		if err == nil {
-			hcnNamespace.Delete()
-			n.closed = true
-		} else if hcn.IsNotFoundError(err) {
-			// We treat as a success if the namespace is not found
-			n.closed = true
-		} else {
-			return errors.Wrap(err, "failed while attempting to get namespace")
+		if err := RemoveByPath(n.path); err != nil {
+			return err
 		}
+		n.closed = true
 	}
 	if n.restored {
 		n.restored = false
+	}
+	return nil
+}
+
+// RemoveByPath removes the network namepace if it exists and not closed.
+// RemoveByPath is idempotent, and will not error if the path does not exist.
+func RemoveByPath(path string) error {
+	n, err := hcn.GetNamespaceByID(path)
+	if err == nil {
+		n.Delete()
+	} else if !hcn.IsNotFoundError(err) {
+		return errors.Wrap(err, "failed while attempting to get namespace")
 	}
 	return nil
 }

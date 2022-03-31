@@ -128,6 +128,21 @@ func (in *instrumentedService) RemovePodSandbox(ctx context.Context, r *runtime.
 	return res, errdefs.ToGRPC(err)
 }
 
+func (in *instrumentedService) ResetPodSandbox(ctx context.Context, r *api.ResetPodSandboxRequest) (res *api.ResetPodSandboxResponse, err error) {
+	if err := in.checkInitialized(); err != nil {
+		return nil, err
+	}
+	log.G(ctx).Debugf("ResetPodSandbox for %q", r.GetPodSandboxId())
+	defer func() {
+		if err != nil {
+			log.G(ctx).WithError(err).Errorf("ResetPodSandbox for %q failed", r.GetPodSandboxId())
+		} else {
+			log.G(ctx).Infof("ResetPodSandbox %q returns successfully", r.GetPodSandboxId())
+		}
+	}()
+	return in.c.ResetPodSandbox(ctrdutil.WithNamespace(ctx), r)
+}
+
 func (in *instrumentedService) PortForward(ctx context.Context, r *runtime.PortForwardRequest) (res *runtime.PortForwardResponse, err error) {
 	if err := in.checkInitialized(); err != nil {
 		return nil, err
@@ -225,6 +240,22 @@ func (in *instrumentedService) StopContainer(ctx context.Context, r *runtime.Sto
 		}
 	}()
 	res, err = in.c.StopContainer(ctrdutil.WithNamespace(ctx), r)
+	return res, errdefs.ToGRPC(err)
+}
+
+func (in *instrumentedService) ResetContainer(ctx context.Context, r *api.ResetContainerRequest) (res *api.ResetContainerResponse, err error) {
+	if err := in.checkInitialized(); err != nil {
+		return nil, err
+	}
+	log.G(ctx).Infof("ResetContainer for %q", r.GetContainerId())
+	defer func() {
+		if err != nil {
+			log.G(ctx).WithError(err).Errorf("ResetContainer for %q failed", r.GetContainerId())
+		} else {
+			log.G(ctx).Infof("ResetContainer for %q returns successfully", r.GetContainerId())
+		}
+	}()
+	res, err = in.c.ResetContainer(ctrdutil.WithNamespace(ctx), r)
 	return res, errdefs.ToGRPC(err)
 }
 

@@ -22,6 +22,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+var ErrKeyNotReserved = errors.New("id not reserved for name")
+
 // Registrar stores one-to-one name<->key mappings.
 // Names and keys must be unique.
 // Registrar is safe for concurrent access.
@@ -37,6 +39,22 @@ func NewRegistrar() *Registrar {
 		nameToKey: make(map[string]string),
 		keyToName: make(map[string]string),
 	}
+}
+
+// GetKey returns the the key reserved for a name, if one exists.
+func (r *Registrar) GetKey(name string) (string, error) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	if name == "" {
+		return "", errors.Errorf("invalid name %q", name)
+	}
+
+	if k, exists := r.nameToKey[name]; exists {
+		return k, nil
+	}
+
+	return "", ErrKeyNotReserved
 }
 
 // Reserve registers a name<->key mapping, name or key must not

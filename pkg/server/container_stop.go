@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containerd/containerd"
 	eventtypes "github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/log"
@@ -30,6 +29,7 @@ import (
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	"github.com/containerd/cri/pkg/store"
 	containerstore "github.com/containerd/cri/pkg/store/container"
+	"github.com/moby/sys/signal"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
@@ -134,12 +134,7 @@ func (c *criService) stopContainer(ctx context.Context, container containerstore
 			}
 		}
 
-		sandboxPlatform, err := c.getSandboxPlatform(container.Metadata.SandboxID)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get container's sandbox platform")
-		}
-
-		sig, err := containerd.ParsePlatformSignal(stopSignal, sandboxPlatform)
+		sig, err := signal.ParseSignal(stopSignal)
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse stop signal %q", stopSignal)
 		}

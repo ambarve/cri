@@ -17,6 +17,16 @@ option (gogoproto.goproto_unrecognized_all) = false;
 service CRIPluginService{
     // LoadImage loads a image into containerd.
     rpc LoadImage(LoadImageRequest) returns (LoadImageResponse) {}
+    // ResetPodSandbox resets the state of a sandbox and any containers that are part of the
+    // sandbox, recreating previously allocated resources (such as namespaces) that were freed
+    // on stop, and retaining other resources.
+    // This call is idempotent if the sandbox is in the ready state.
+    rpc ResetPodSandbox(ResetPodSandboxRequest) returns (ResetPodSandboxResponse) {}
+    // ResetContainer resets a stopped container back to the created state, keeping
+    // its scratch space untouched.
+    // This call is idempotent, and must not return an error if the container is already
+    // in the created state.
+    rpc ResetContainer(ResetContainerRequest) returns (ResetContainerResponse) {}
 }
 
 message LoadImageRequest {
@@ -28,3 +38,17 @@ message LoadImageResponse {
     // Images have been loaded.
     repeated string Images = 1;
 }
+
+message ResetPodSandboxRequest {
+    // ID of the PodSandbox to reset.
+    string pod_sandbox_id = 1;
+}
+
+message ResetPodSandboxResponse {}
+
+message ResetContainerRequest {
+    // ID of the container to reset.
+    string container_id = 1;
+}
+
+message ResetContainerResponse {}

@@ -118,6 +118,9 @@ func setContainerRemoving(container containerstore.Container) error {
 		if status.Starting {
 			return status, errors.New("container is in starting state, can't be removed")
 		}
+		if status.Resetting {
+			return status, errors.New("container is in restting state, can't be removed")
+		}
 		if status.Removing {
 			return status, errors.New("container is already in removing state")
 		}

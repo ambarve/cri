@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/diff"
 	"github.com/containerd/containerd/errdefs"
 	containerdimages "github.com/containerd/containerd/images"
 	"github.com/containerd/containerd/labels"
@@ -114,6 +115,7 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		containerd.WithPullUnpack,
 		containerd.WithPullLabel(imageLabelKey, imageLabelValue),
 		containerd.WithImageHandler(imageHandler),
+		containerd.WithPullLabels(diff.FilterDiffLabels(r.GetSandboxConfig().GetAnnotations())),
 	}
 
 	if !c.config.ContainerdConfig.DisableSnapshotAnnotations {
@@ -125,6 +127,16 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		// Allows GC to clean layers up from the content store after unpacking
 		pullOpts = append(pullOpts,
 			containerd.WithChildLabelMap(containerdimages.ChildGCLabelsFilterLayers))
+	}
+
+	if c.config.ContainerdConfig.EnableLayerIntegrity {
+		// Enable integrity protection of read-only layers
+		pullOpts = append(pullOpts, containerd.WithLCOWLayerIntegrity())
+	}
+
+	if c.config.ContainerdConfig.DisableSameLayerUnpack {
+		pullOpts = append(pullOpts,
+			containerd.WithDisableSameLayerUnpack())
 	}
 
 	image, err := c.client.Pull(ctx, ref, pullOpts...)

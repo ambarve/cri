@@ -37,11 +37,11 @@ func (c *criService) PodSandboxStatus(ctx context.Context, r *runtime.PodSandbox
 		return nil, errors.Wrap(err, "an error occurred when try to find sandbox")
 	}
 
-	ip, err := c.getIP(sandbox)
+	ns, err := c.getNetworkStatus(sandbox)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get sandbox ip")
+		return nil, errors.Wrap(err, "failed to get sandbox network status")
 	}
-	status := toCRISandboxStatus(sandbox.Metadata, sandbox.Status.Get(), ip)
+	status := toCRISandboxStatus(sandbox.Metadata, sandbox.Status.Get(), ns)
 	if status.GetCreatedAt() == 0 {
 		// CRI doesn't allow CreatedAt == 0.
 		info, err := sandbox.Container.Info(ctx)
@@ -66,26 +66,38 @@ func (c *criService) PodSandboxStatus(ctx context.Context, r *runtime.PodSandbox
 	}, nil
 }
 
-func (c *criService) getIP(sandbox sandboxstore.Sandbox) (string, error) {
+func (c *criService) getNetworkStatus(sandbox sandboxstore.Sandbox) (*runtime.PodSandboxNetworkStatus, error) {
 	config := sandbox.Config
+	ns := runtime.PodSandboxNetworkStatus{}
 
 	if config.GetLinux().GetSecurityContext().GetNamespaceOptions().GetNetwork() == runtime.NamespaceMode_NODE {
 		// For sandboxes using the node network we are not
 		// responsible for reporting the IP.
-		return "", nil
+		return &ns, nil
 	}
 
 	if closed, err := sandbox.NetNS.Closed(); err != nil {
-		return "", errors.Wrap(err, "check network namespace closed")
+		return nil, errors.Wrap(err, "check network namespace closed")
 	} else if closed {
-		return "", nil
+		return &ns, nil
 	}
 
-	return sandbox.IP, nil
+	ns.Ip = sandbox.IP
+	// add additional ips assigned from CNI
+	if configs, ok := sandbox.CNIResult.Interfaces[defaultIfName]; ok && len(configs.IPConfigs) > 0 {
+		ns.AdditionalIps = make([]*runtime.PodIP, 0, len(configs.IPConfigs)-1)
+		for _, c := range configs.IPConfigs {
+			if ip := c.IP.String(); ip != ns.Ip {
+				ns.AdditionalIps = append(ns.AdditionalIps, &runtime.PodIP{Ip: ip})
+			}
+		}
+	}
+
+	return &ns, nil
 }
 
 // toCRISandboxStatus converts sandbox metadata into CRI pod sandbox status.
-func toCRISandboxStatus(meta sandboxstore.Metadata, status sandboxstore.Status, ip string) *runtime.PodSandboxStatus {
+func toCRISandboxStatus(meta sandboxstore.Metadata, status sandboxstore.Status, ns *runtime.PodSandboxNetworkStatus) *runtime.PodSandboxStatus {
 	// Set sandbox state to NOTREADY by default.
 	state := runtime.PodSandboxState_SANDBOX_NOTREADY
 	if status.State == sandboxstore.StateReady {
@@ -97,7 +109,7 @@ func toCRISandboxStatus(meta sandboxstore.Metadata, status sandboxstore.Status, 
 		Metadata:  meta.Config.GetMetadata(),
 		State:     state,
 		CreatedAt: status.CreatedAt.UnixNano(),
-		Network:   &runtime.PodSandboxNetworkStatus{Ip: ip},
+		Network:   ns,
 		Linux: &runtime.LinuxPodSandboxStatus{
 			Namespaces: &runtime.Namespace{
 				Options: &runtime.NamespaceOption{

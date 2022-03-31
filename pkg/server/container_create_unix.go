@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -69,7 +70,9 @@ const (
 // CreateContainer creates a new container in the given PodSandbox.
 func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateContainerRequest) (_ *runtime.CreateContainerResponse, retErr error) {
 	config := r.GetConfig()
-	log.G(ctx).Debugf("Container config %+v", config)
+	log.G(ctx).
+		WithField("config", fmt.Sprintf("%+v", c.Scrub(*config))).
+		Debug("Container config")
 	sandboxConfig := r.GetSandboxConfig()
 	sandbox, err := c.sandboxStore.Get(r.GetPodSandboxId())
 	if err != nil {
@@ -168,7 +171,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		return nil, errors.Wrapf(err, "failed to generate container %q spec", id)
 	}
 
-	log.G(ctx).Debugf("Container %q spec: %#+v", id, spew.NewFormatter(spec))
+	log.G(ctx).Debugf("Container %q spec: %#+v", id, c.Scrub(*spec))
 
 	// Set snapshotter before any other options.
 	opts := []containerd.NewContainerOpts{
