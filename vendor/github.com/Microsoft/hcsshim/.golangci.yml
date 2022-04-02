@@ -1,5 +1,9 @@
+run:
+  timeout: 8m
+
 linters:
   enable:
+    - gofmt
     - stylecheck
 
 linters-settings:
@@ -21,6 +25,16 @@ issues:
       Text: "ST1003:"
 
     - path: hcsshim.go
+      linters:
+        - stylecheck
+      Text: "ST1003:"
+
+    - path: cmd\\ncproxy\\nodenetsvc\\
+      linters:
+        - stylecheck
+      Text: "ST1003:"
+
+    - path: cmd\\ncproxy_mock\\
       linters:
         - stylecheck
       Text: "ST1003:"
@@ -91,6 +105,16 @@ issues:
       Text: "ST1003:"
 
     - path: internal\\hcserror\\
+      linters:
+        - stylecheck
+      Text: "ST1003:"
+
+    - path: computestorage\\storage.go
+      linters:
+        - stylecheck
+      Text: "ST1003:"
+
+    - path: internal\\vhdx\\info
       linters:
         - stylecheck
       Text: "ST1003:"

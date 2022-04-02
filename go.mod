@@ -3,7 +3,7 @@ module github.com/containerd/cri
 go 1.14
 
 require (
-	github.com/Microsoft/go-winio v0.5.1
+	github.com/Microsoft/go-winio v0.5.2
 	github.com/Microsoft/hcsshim v0.9.1
 	github.com/containerd/cgroups v1.0.2
 	github.com/containerd/containerd v1.5.9
@@ -15,9 +15,10 @@ require (
 	github.com/containernetworking/plugins v1.0.1
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/distribution v2.7.1+incompatible
-	github.com/docker/docker v17.12.0-ce-rc1.0.20200310163718-4634ce647cf2+incompatible
+	github.com/docker/docker v20.10.6+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
+	github.com/moby/sys/mount v0.3.1 // indirect
 	github.com/moby/sys/signal v0.6.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.2
@@ -43,8 +44,9 @@ require (
 )
 
 replace (
-	github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa
-	github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef // fork
 	// replace genproto and grpc to prevent panic in ttrpc module
+	github.com/Microsoft/hcsshim => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220402010854-0f00cc08a72b
+	github.com/containerd/containerd => github.com/ambarve/containerd v1.5.1-0.20220401234948-5d9ff4a8721f
+	github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef // fork
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
 )

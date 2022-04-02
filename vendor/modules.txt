@@ -1,4 +1,4 @@
-# github.com/Microsoft/go-winio v0.5.1
+# github.com/Microsoft/go-winio v0.5.2
 ## explicit
 github.com/Microsoft/go-winio
 github.com/Microsoft/go-winio/backuptar
@@ -8,7 +8,7 @@ github.com/Microsoft/go-winio/pkg/fs
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.9.1
+# github.com/Microsoft/hcsshim v0.9.1 => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220402010854-0f00cc08a72b
 ## explicit
 github.com/Microsoft/hcsshim
 github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options
@@ -19,6 +19,8 @@ github.com/Microsoft/hcsshim/ext4/internal/compactext4
 github.com/Microsoft/hcsshim/ext4/internal/format
 github.com/Microsoft/hcsshim/ext4/tar2ext4
 github.com/Microsoft/hcsshim/hcn
+github.com/Microsoft/hcsshim/internal/cimfs
+github.com/Microsoft/hcsshim/internal/cimfs/format
 github.com/Microsoft/hcsshim/internal/cni
 github.com/Microsoft/hcsshim/internal/cow
 github.com/Microsoft/hcsshim/internal/hcs
@@ -32,16 +34,20 @@ github.com/Microsoft/hcsshim/internal/logfields
 github.com/Microsoft/hcsshim/internal/longpath
 github.com/Microsoft/hcsshim/internal/mergemaps
 github.com/Microsoft/hcsshim/internal/oc
+github.com/Microsoft/hcsshim/internal/protocol/guestrequest
 github.com/Microsoft/hcsshim/internal/regstate
 github.com/Microsoft/hcsshim/internal/runhcs
 github.com/Microsoft/hcsshim/internal/safefile
 github.com/Microsoft/hcsshim/internal/timeout
+github.com/Microsoft/hcsshim/internal/vhdx
 github.com/Microsoft/hcsshim/internal/vmcompute
 github.com/Microsoft/hcsshim/internal/wclayer
+github.com/Microsoft/hcsshim/internal/wclayer/cim
 github.com/Microsoft/hcsshim/internal/winapi
 github.com/Microsoft/hcsshim/osversion
 github.com/Microsoft/hcsshim/pkg/go-runhcs
 github.com/Microsoft/hcsshim/pkg/ociwclayer
+github.com/Microsoft/hcsshim/pkg/ociwclayer/cim
 github.com/Microsoft/hcsshim/pkg/octtrpc
 # github.com/beorn7/perks v1.0.1
 github.com/beorn7/perks/quantile
@@ -66,7 +72,7 @@ github.com/containerd/cgroups/v2
 github.com/containerd/cgroups/v2/stats
 # github.com/containerd/console v1.0.3
 github.com/containerd/console
-# github.com/containerd/containerd v1.5.9 => github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa
+# github.com/containerd/containerd v1.5.9 => github.com/ambarve/containerd v1.5.1-0.20220401234948-5d9ff4a8721f
 ## explicit
 github.com/containerd/containerd
 github.com/containerd/containerd/archive
@@ -261,11 +267,10 @@ github.com/davecgh/go-spew/spew
 # github.com/docker/distribution v2.7.1+incompatible
 ## explicit
 github.com/docker/distribution/digestset
-# github.com/docker/docker v17.12.0-ce-rc1.0.20200310163718-4634ce647cf2+incompatible
+# github.com/docker/docker v20.10.6+incompatible
 ## explicit
 github.com/docker/docker/pkg/ioutils
 github.com/docker/docker/pkg/longpath
-github.com/docker/docker/pkg/mount
 github.com/docker/docker/pkg/symlink
 github.com/docker/docker/pkg/system
 github.com/docker/docker/pkg/truncindex
@@ -312,7 +317,7 @@ github.com/google/go-cmp/cmp/internal/value
 # github.com/google/gofuzz v1.2.0
 github.com/google/gofuzz
 github.com/google/gofuzz/bytesource
-# github.com/google/uuid v1.2.0
+# github.com/google/uuid v1.3.0
 github.com/google/uuid
 # github.com/grpc-ecosystem/go-grpc-middleware v1.3.0
 github.com/grpc-ecosystem/go-grpc-middleware
@@ -344,7 +349,10 @@ github.com/moby/locker
 # github.com/moby/spdystream v0.2.0
 github.com/moby/spdystream
 github.com/moby/spdystream/spdy
-# github.com/moby/sys/mountinfo v0.5.0
+# github.com/moby/sys/mount v0.3.1
+## explicit
+github.com/moby/sys/mount
+# github.com/moby/sys/mountinfo v0.6.0
 github.com/moby/sys/mountinfo
 # github.com/moby/sys/signal v0.6.0
 ## explicit
@@ -709,6 +717,7 @@ k8s.io/utils/integer
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220329205807-c612c11661fa
+# github.com/Microsoft/hcsshim => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220402010854-0f00cc08a72b
+# github.com/containerd/containerd => github.com/ambarve/containerd v1.5.1-0.20220401234948-5d9ff4a8721f
 # github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef
 # google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
