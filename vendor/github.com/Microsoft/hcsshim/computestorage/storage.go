@@ -4,6 +4,7 @@
 package computestorage
 
 import (
+	"github.com/Microsoft/go-winio/pkg/guid"
 	hcsschema "github.com/Microsoft/hcsshim/internal/hcs/schema2"
 )
 
@@ -20,10 +21,13 @@ import (
 //sys hcsGetLayerVhdMountPath(vhdHandle windows.Handle, mountPath **uint16) (hr error) = computestorage.HcsGetLayerVhdMountPath?
 //sys hcsSetupBaseOSVolume(layerPath string, volumePath string, options string) (hr error) = computestorage.HcsSetupBaseOSVolume?
 
+type Version = hcsschema.Version
+type Layer = hcsschema.Layer
+
 // LayerData is the data used to describe parent layer information.
 type LayerData struct {
-	SchemaVersion hcsschema.Version `json:"SchemaVersion,omitempty"`
-	Layers        []hcsschema.Layer `json:"Layers,omitempty"`
+	SchemaVersion Version `json:"SchemaVersion,omitempty"`
+	Layers        []Layer `json:"Layers,omitempty"`
 }
 
 // ExportLayerOptions are the set of options that are used with the `computestorage.HcsExportLayer` syscall.
@@ -44,7 +48,17 @@ const (
 // OsLayerOptions are the set of options that are used with the `SetupBaseOSLayer` and
 // `SetupBaseOSVolume` calls.
 type OsLayerOptions struct {
-	Type                       OsLayerType `json:"Type,omitempty"`
-	DisableCiCacheOptimization bool        `json:"DisableCiCacheOptimization,omitempty"`
-	SkipUpdateBcdForBoot       bool        `json:"SkipUpdateBcdForBoot,omitempty"`
+	Type OsLayerType `json:"Type,omitempty"`
+
+	DisableCiCacheOptimization bool `json:"DisableCiCacheOptimization,omitempty"`
+
+	IsDynamic bool `json:"IsDynamic,omitempty"`
+
+	SkipSandboxPreExpansion bool `json:"SkipSandboxPreExpansion,omitempty"`
+
+	FileSystemLayers []hcsschema.Layer `json:"FileSystemLayers,omitempty"`
+
+	SandboxVhdPartitionId guid.GUID `json:"SandboxVhdPartitionId,omitempty"`
+
+	SkipUpdateBcdForBoot bool `json:"SkipUpdateBcdForBoot,omitempty"`
 }
