@@ -28,6 +28,7 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/log"
+	"github.com/containerd/containerd/pkg/kmutex"
 	"github.com/containerd/containerd/plugin"
 	cni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
@@ -101,22 +102,27 @@ type criService struct {
 	// initialized indicates whether the server is initialized. All GRPC services
 	// should return error before the server is initialized.
 	initialized atomic.Bool
+	// unpackDuplicationSuppressor is used to make sure that there is only
+	// one in-flight fetch request or unpack handler for a given descriptor's
+	// or chain ID.
+	unpackDuplicationSuppressor kmutex.KeyedLocker
 }
 
 // NewCRIService returns a new instance of CRIService
 func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIService, error) {
 	var err error
 	c := &criService{
-		config:             config,
-		client:             client,
-		os:                 osinterface.RealOS{},
-		sandboxStore:       sandboxstore.NewStore(),
-		containerStore:     containerstore.NewStore(),
-		imageStore:         imagestore.NewStore(client),
-		snapshotStore:      snapshotstore.NewStore(),
-		sandboxNameIndex:   registrar.NewRegistrar(),
-		containerNameIndex: registrar.NewRegistrar(),
-		initialized:        atomic.NewBool(false),
+		config:                      config,
+		client:                      client,
+		os:                          osinterface.RealOS{},
+		sandboxStore:                sandboxstore.NewStore(),
+		containerStore:              containerstore.NewStore(),
+		imageStore:                  imagestore.NewStore(client),
+		snapshotStore:               snapshotstore.NewStore(),
+		sandboxNameIndex:            registrar.NewRegistrar(),
+		containerNameIndex:          registrar.NewRegistrar(),
+		initialized:                 atomic.NewBool(false),
+		unpackDuplicationSuppressor: kmutex.New(),
 	}
 
 	if c.config.DisableHTTP2Client {

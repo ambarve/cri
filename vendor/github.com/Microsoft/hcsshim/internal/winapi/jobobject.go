@@ -1,3 +1,5 @@
+//go:build windows
+
 package winapi
 
 import (
@@ -52,6 +54,7 @@ const (
 	JobObjectLimitViolationInformation       uint32 = 13
 	JobObjectMemoryUsageInformation          uint32 = 28
 	JobObjectNotificationLimitInformation2   uint32 = 33
+	JobObjectCreateSilo                      uint32 = 35
 	JobObjectIoAttribution                   uint32 = 42
 )
 

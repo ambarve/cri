@@ -116,6 +116,9 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		containerd.WithPullLabel(imageLabelKey, imageLabelValue),
 		containerd.WithImageHandler(imageHandler),
 		containerd.WithPullLabels(diff.FilterDiffLabels(r.GetSandboxConfig().GetAnnotations())),
+		containerd.WithUnpackOpts([]containerd.UnpackOpt{
+			containerd.WithUnpackDuplicationSuppressor(c.unpackDuplicationSuppressor),
+		}),
 	}
 
 	if !c.config.ContainerdConfig.DisableSnapshotAnnotations {
@@ -132,11 +135,6 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 	if c.config.ContainerdConfig.EnableLayerIntegrity {
 		// Enable integrity protection of read-only layers
 		pullOpts = append(pullOpts, containerd.WithLCOWLayerIntegrity())
-	}
-
-	if c.config.ContainerdConfig.DisableSameLayerUnpack {
-		pullOpts = append(pullOpts,
-			containerd.WithDisableSameLayerUnpack())
 	}
 
 	image, err := c.client.Pull(ctx, ref, pullOpts...)
