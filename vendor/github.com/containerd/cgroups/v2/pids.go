@@ -14,7 +14,24 @@
    limitations under the License.
 */
 
-package cgroups
+package v2
 
-// Hierarchy enables both unified and split hierarchy for cgroups
-type Hierarchy func() ([]Subsystem, error)
+import "strconv"
+
+type Pids struct {
+	Max int64
+}
+
+func (r *Pids) Values() (o []Value) {
+	if r.Max != 0 {
+		limit := "max"
+		if r.Max > 0 {
+			limit = strconv.FormatInt(r.Max, 10)
+		}
+		o = append(o, Value{
+			filename: "pids.max",
+			value:    limit,
+		})
+	}
+	return o
+}
