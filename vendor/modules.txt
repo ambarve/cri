@@ -8,7 +8,7 @@ github.com/Microsoft/go-winio/pkg/fs
 github.com/Microsoft/go-winio/pkg/guid
 github.com/Microsoft/go-winio/pkg/security
 github.com/Microsoft/go-winio/vhd
-# github.com/Microsoft/hcsshim v0.9.1 => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220402010854-0f00cc08a72b
+# github.com/Microsoft/hcsshim v0.9.1 => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220419185401-aa08623f61b6
 ## explicit
 github.com/Microsoft/hcsshim
 github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options
@@ -72,7 +72,7 @@ github.com/containerd/cgroups/v2
 github.com/containerd/cgroups/v2/stats
 # github.com/containerd/console v1.0.3
 github.com/containerd/console
-# github.com/containerd/containerd v1.5.9 => github.com/ambarve/containerd v1.5.1-0.20220401234948-5d9ff4a8721f
+# github.com/containerd/containerd v1.5.10 => github.com/ambarve/containerd v1.5.1-0.20220419183520-9a3415833bfb
 ## explicit
 github.com/containerd/containerd
 github.com/containerd/containerd/archive
@@ -717,7 +717,7 @@ k8s.io/utils/integer
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/Microsoft/hcsshim => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220402010854-0f00cc08a72b
-# github.com/containerd/containerd => github.com/ambarve/containerd v1.5.1-0.20220401234948-5d9ff4a8721f
+# github.com/Microsoft/hcsshim => github.com/ambarve/hcsshim v0.9.0-rc0.0.20220419185401-aa08623f61b6
+# github.com/containerd/containerd => github.com/ambarve/containerd v1.5.1-0.20220419183520-9a3415833bfb
 # github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef
 # google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
