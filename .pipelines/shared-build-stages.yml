@@ -39,6 +39,7 @@ stages:
               go build -o $OUT_DIR github.com/containerd/cri/cmd/ctr
             env:
               GOPATH: $(Pipeline.Workspace)/s
+              GO111MODULE: off
               GOOS: windows
               OUT_DIR: '$(Build.StagingDirectory)/out'
 
