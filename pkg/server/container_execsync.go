@@ -106,7 +106,18 @@ func (c *criService) execInContainer(ctx context.Context, id string, opts execOp
 		}
 		spec = g.Config
 	}
+
 	pspec := spec.Process
+	// Clear out the commandline field. For Windows this field is used to supply the full commandline
+	// for the process without needing any further escaping or touchups, it should be passed directly to
+	// CreateProcess further down the stack. Hcsshim will prefer using the Commandline field over Args if
+	// they're both set, but because we re-use the containers OCI runtime spec as a base for the exec,
+	// we'll actually end up launching the containers init process again if Commandline was filled in
+	// on container create. Currently, the only time Commandline would be filled in is to handle ArgsEscaped
+	// behavior, which indicates that the command line should be used from args[0] without escaping.
+	// This is a non-standard OCI extension that Docker supported and it only comes into play with images
+	// that use a shell-form ENTRYPOINT or CMD in their Dockerfile.
+	pspec.CommandLine = ""
 	pspec.Args = opts.cmd
 	pspec.Terminal = opts.tty
 

@@ -16,10 +16,6 @@ limitations under the License.
 
 package config
 
-import (
-	"github.com/BurntSushi/toml"
-)
-
 // Runtime struct to contain the type(ID), engine, and root variables for a default runtime
 // and a runtime for untrusted worload.
 type Runtime struct {
@@ -35,7 +31,7 @@ type Runtime struct {
 	Root string `toml:"runtime_root" json:"runtimeRoot"`
 	// Options are config options for the runtime. If options is loaded
 	// from toml config, it will be toml.Primitive.
-	Options *toml.Primitive `toml:"options" json:"options"`
+	Options map[string]interface{} `toml:"options" json:"options"`
 }
 
 // ContainerdConfig contains toml config related to containerd
