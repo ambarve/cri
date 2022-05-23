@@ -27,7 +27,7 @@ stages:
                   # Pull upstream changes
                   git remote add kevpar https://github.com/kevpar/cri.git
                   git fetch kevpar
-                  git merge kevpar/windows_port
+                  git merge kevpar/fork/windows_port/1.4
                 displayName: Merge upstream changes for nightly build
 
           - script: |
