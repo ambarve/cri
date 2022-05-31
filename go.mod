@@ -10,7 +10,7 @@ require (
 	github.com/containerd/containerd v1.6.1
 	github.com/containerd/continuity v0.2.2
 	github.com/containerd/fifo v1.0.0
-	github.com/containerd/go-cni v1.1.4
+	github.com/containerd/go-cni v1.1.5
 	github.com/containerd/typeurl v1.0.2
 	github.com/containernetworking/plugins v1.1.1
 	github.com/davecgh/go-spew v1.1.1
@@ -25,7 +25,7 @@ require (
 	github.com/opencontainers/runc v1.1.1
 	github.com/opencontainers/runtime-spec v1.0.3-0.20210326190908-1c3f411f0417
 	github.com/opencontainers/runtime-tools v0.7.1-0.20181011054405-1d69bd0f9c39
-	github.com/opencontainers/selinux v1.10.0
+	github.com/opencontainers/selinux v1.10.1
 	github.com/pelletier/go-toml v1.9.3
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.8.1

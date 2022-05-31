@@ -35,7 +35,7 @@ import (
 	"github.com/containerd/typeurl"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func (c *criService) resetContainer(ctx context.Context, container containerstore.Container) (retErr error) {

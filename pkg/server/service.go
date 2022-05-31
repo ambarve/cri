@@ -35,7 +35,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	api "github.com/containerd/cri/pkg/api/v1"
 	"github.com/containerd/cri/pkg/atomic"

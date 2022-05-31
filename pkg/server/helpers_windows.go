@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -22,7 +23,7 @@ import (
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
 	criconfig "github.com/containerd/cri/pkg/config"
 	"github.com/pkg/errors"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // initSelinuxOpts is not supported on Windows.

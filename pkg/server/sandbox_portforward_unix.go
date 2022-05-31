@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -30,7 +31,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // portForward requires `socat` on the node. It uses netns to enter the sandbox namespace,

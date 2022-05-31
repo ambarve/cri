@@ -28,7 +28,7 @@ import (
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	criconfig "github.com/containerd/cri/pkg/config"
 	"github.com/containerd/cri/pkg/store"

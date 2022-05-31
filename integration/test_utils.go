@@ -36,7 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	cri "k8s.io/cri-api/pkg/apis"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 
 	api "github.com/containerd/cri/pkg/api/v1"
 	"github.com/containerd/cri/pkg/client"

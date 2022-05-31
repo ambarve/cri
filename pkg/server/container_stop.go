@@ -30,7 +30,7 @@ import (
 	"github.com/containerd/cri/pkg/store"
 	containerstore "github.com/containerd/cri/pkg/store/container"
 	"github.com/moby/sys/signal"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 // StopContainer stops a running container with a grace period (i.e., timeout).

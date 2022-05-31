@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -24,7 +25,7 @@ import (
 	containerstore "github.com/containerd/cri/pkg/store/container"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 	"github.com/containerd/typeurl"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func getSingleContainerMetrics(

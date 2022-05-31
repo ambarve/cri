@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -24,7 +25,7 @@ import (
 	containerstore "github.com/containerd/cri/pkg/store/container"
 	"github.com/containerd/typeurl"
 	"github.com/pkg/errors"
-	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
+	runtime "k8s.io/cri-api/pkg/apis/runtime/v1"
 )
 
 func (c *criService) getContainerMetrics(
