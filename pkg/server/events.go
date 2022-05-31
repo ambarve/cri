@@ -26,6 +26,7 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/events"
 	"github.com/containerd/typeurl"
+	"github.com/gogo/protobuf/types"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/net/context"
@@ -134,9 +135,9 @@ func (em *eventMonitor) startExitMonitor(ctx context.Context, id string, pid uin
 	return stopCh
 }
 
-func convertEvent(e typeurl.Any) (string, interface{}, error) {
+func convertEvent(e types.Any) (string, interface{}, error) {
 	id := ""
-	evt, err := typeurl.UnmarshalAny(e)
+	evt, err := typeurl.UnmarshalAny(&e)
 	if err != nil {
 		return "", nil, errors.Wrap(err, "failed to unmarshalany")
 	}
@@ -187,7 +188,7 @@ func (em *eventMonitor) start() <-chan error {
 					logrus.Debugf("Ignoring events in namespace - %q", e.Namespace)
 					break
 				}
-				id, evt, err := convertEvent(e.Event)
+				id, evt, err := convertEvent(*e.Event)
 				if err != nil {
 					logrus.WithError(err).Errorf("Failed to convert event %+v", e)
 					break
