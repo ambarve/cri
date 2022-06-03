@@ -26,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/BurntSushi/toml"
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/containers"
@@ -37,6 +36,7 @@ import (
 	imagedigest "github.com/opencontainers/go-digest"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/generate"
+	"github.com/pelletier/go-toml"
 	"github.com/pkg/errors"
 	"golang.org/x/net/context"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
@@ -506,8 +506,12 @@ func generateRuntimeOptions(r criconfig.Runtime, c criconfig.Config) (interface{
 		}
 
 	}
+	optionsTree, err := toml.TreeFromMap(r.Options)
+	if err != nil {
+		return nil, err
+	}
 	options := getRuntimeOptionsType(r.Type)
-	if err := toml.PrimitiveDecode(*r.Options, options); err != nil {
+	if err := optionsTree.Unmarshal(options); err != nil {
 		return nil, err
 	}
 	return options, nil

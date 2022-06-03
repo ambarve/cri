@@ -20,6 +20,7 @@ limitations under the License.
 package server
 
 import (
+	"fmt"
 	"strconv"
 
 	runhcsoptions "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/options"
@@ -38,7 +39,6 @@ import (
 	"github.com/containerd/cri/pkg/registrar"
 	sandboxstore "github.com/containerd/cri/pkg/store/sandbox"
 	"github.com/containerd/cri/pkg/util"
-	"github.com/davecgh/go-spew/spew"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/pkg/errors"
@@ -54,7 +54,9 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	if config.Annotations == nil {
 		config.Annotations = make(map[string]string)
 	}
-	log.G(ctx).Debugf("Sandbox config %+v", config)
+	log.G(ctx).
+		WithField("config", fmt.Sprintf("%+v", c.Scrub(*config))).
+		Debugf("Sandbox config")
 
 	metadata := config.GetMetadata()
 	if metadata == nil {
@@ -203,7 +205,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 	log.G(ctx).WithFields(logrus.Fields{
 		"id":             id,
 		"runtimeHandler": runtimeHandler,
-		"spec":           spew.NewFormatter(spec),
+		"spec":           fmt.Sprintf("%+v", c.Scrub(*spec)),
 	}).Debug("Sandbox container creation")
 
 	sandboxLabels := buildLabels(config.Labels, containerKindSandbox)
