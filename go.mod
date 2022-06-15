@@ -16,6 +16,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/docker/distribution v2.7.1+incompatible
 	github.com/docker/docker v17.12.0-ce-rc1.0.20200310163718-4634ce647cf2+incompatible
+	github.com/emicklei/go-restful v2.15.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
 	github.com/j-keck/arping v1.0.2 // indirect
@@ -36,10 +37,13 @@ require (
 	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 	google.golang.org/grpc v1.43.0
+	k8s.io/api v0.22.5
 	k8s.io/apimachinery v0.22.5
+	k8s.io/apiserver v0.22.5
 	k8s.io/client-go v0.22.5
 	k8s.io/cri-api v0.23.1
 	k8s.io/klog v0.2.1-0.20190222023857-8145543d67ad
+	k8s.io/klog/v2 v2.30.0
 	k8s.io/utils v0.0.0-20210930125809-cb0fa318a74b
 )
 

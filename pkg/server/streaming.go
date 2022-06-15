@@ -24,7 +24,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/containerd/containerd/pkg/cri/streaming"
+	"github.com/containerd/cri/pkg/streaming"
 	"github.com/pkg/errors"
 	k8snet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/runtime"

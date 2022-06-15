@@ -28,9 +28,9 @@ import (
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/log"
-	"github.com/containerd/containerd/pkg/cri/streaming"
 	"github.com/containerd/containerd/pkg/kmutex"
 	"github.com/containerd/containerd/plugin"
+	"github.com/containerd/cri/pkg/streaming"
 	cni "github.com/containerd/go-cni"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
