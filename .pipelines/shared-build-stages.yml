@@ -10,7 +10,8 @@ stages:
   - stage: build_repo
     jobs:
 
-      - template: .pipelines/templates/build/version.yml@cplat
+      - ${{ if not(eq(parameters.Nightly, true)) }}:
+        - template: .pipelines/templates/build/version.yml@cplat
 
       - job: build
         pool:
@@ -28,7 +29,18 @@ stages:
                   git remote add kevpar https://github.com/kevpar/cri.git
                   git fetch kevpar
                   git merge kevpar/fork/windows_port/1.4
-                displayName: Merge upstream changes for nightly build
+                  
+                  # OneBranch custom versioning for nightly builds
+                  gitVersion=$(git rev-parse kevpar/fork/windows_port/1.4)
+                  timeStamp=$(date --utc +%Y%m%d)
+                  ver=ob-${gitVersion}-nightly-${timeStamp}-$(Build.BuildId)
+                  echo '##vso[task.setvariable variable=versionString]'${ver//\//_}
+                displayName: Merge upstream changes for nightly build and set custom version
+
+              - task: onebranch.pipeline.version@1
+                inputs:
+                  system: 'Custom'
+                  customVersion: '$(versionString)'
 
           - script: |
               set -eux
