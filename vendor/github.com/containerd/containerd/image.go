@@ -305,6 +305,7 @@ func WithSnapshotterPlatformCheck() UnpackOpt {
 	}
 }
 
+// WithUnpackConfigApplyOpts sets ApplyOpts for UnpackConfig
 func WithUnpackConfigApplyOpts(opts ...diff.ApplyOpt) UnpackOpt {
 	return func(_ context.Context, uc *UnpackConfig) error {
 		uc.ApplyOpts = append(uc.ApplyOpts, opts...)
@@ -367,7 +368,7 @@ func (i *image) Unpack(ctx context.Context, snapshotterName string, opts ...Unpa
 
 	for _, layer := range layers {
 		unpacked, err = rootfs.ApplyLayerWithOpts(ctx, layer, chain, sn, a, config.SnapshotOpts, config.ApplyOpts)
-		if err != nil {
+		if err != nil && !errdefs.IsAlreadyExists(err) {
 			return err
 		}
 

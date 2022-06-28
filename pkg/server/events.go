@@ -32,7 +32,6 @@ import (
 	"golang.org/x/net/context"
 	"k8s.io/apimachinery/pkg/util/clock"
 
-	"github.com/containerd/cri/pkg/constants"
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	"github.com/containerd/cri/pkg/store"
 	containerstore "github.com/containerd/cri/pkg/store/container"
@@ -184,10 +183,6 @@ func (em *eventMonitor) start() <-chan error {
 				}
 			case e := <-em.ch:
 				logrus.Debugf("Received containerd event timestamp - %v, namespace - %q, topic - %q", e.Timestamp, e.Namespace, e.Topic)
-				if e.Namespace != constants.K8sContainerdNamespace {
-					logrus.Debugf("Ignoring events in namespace - %q", e.Namespace)
-					break
-				}
 				id, evt, err := convertEvent(e.Event)
 				if err != nil {
 					logrus.WithError(err).Errorf("Failed to convert event %+v", e)

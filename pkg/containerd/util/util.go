@@ -19,6 +19,7 @@ package util
 import (
 	"time"
 
+	"github.com/containerd/containerd/log"
 	"github.com/containerd/containerd/namespaces"
 	"golang.org/x/net/context"
 
@@ -42,5 +43,11 @@ func NamespacedContext() context.Context {
 
 // WithNamespace adds kubernetes namespace to the context.
 func WithNamespace(ctx context.Context) context.Context {
+	// check if provided context has any client provided namespace in GRPC headers.
+	ns, ok := namespaces.Namespace(ctx)
+	if ok {
+		log.G(ctx).Debugf("using client provided namespace %s instead of k8s.io namespace", ns)
+		return namespaces.WithNamespace(ctx, ns)
+	}
 	return namespaces.WithNamespace(ctx, constants.K8sContainerdNamespace)
 }
