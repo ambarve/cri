@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build !windows
+// +build !windows
 
 /*
    Copyright The containerd Authors.
@@ -17,17 +17,23 @@
    limitations under the License.
 */
 
-package common
+package v2
 
 import (
-	"context"
-
-	"github.com/gogo/protobuf/types"
+	"fmt"
+	"os"
+	"path/filepath"
 )
 
-// Statable type that returns cgroup metrics
-type Statable interface {
-	ID() string
-	Namespace() string
-	Stats(context.Context) (*types.Any, error)
+// atomicDelete renames the path to a hidden file before removal
+func atomicDelete(path string) error {
+	// create a hidden dir for an atomic removal
+	atomicPath := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s", filepath.Base(path)))
+	if err := os.Rename(path, atomicPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return os.RemoveAll(atomicPath)
 }

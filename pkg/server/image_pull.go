@@ -97,12 +97,33 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		return nil, errors.Wrapf(err, "failed to resolve image %q", ref)
 	}
 
+	parsedRef, err := reference.Parse(ref)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse image ref: %s", err)
+	}
+
 	var (
 		isSchema1    bool
 		imageHandler containerdimages.HandlerFunc = func(_ context.Context,
 			desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
 			if desc.MediaType == containerdimages.MediaTypeDockerSchema1Manifest {
 				isSchema1 = true
+			}
+			return nil, nil
+		}
+
+		// Keeps a cache of which blobs have been already pulled from a registry.
+		pullCacheHandler containerdimages.HandlerFunc = func(_ context.Context,
+			desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
+			if containerdimages.IsLayerType(desc.MediaType) || containerdimages.IsKnownConfig(desc.MediaType) {
+				ok, err := c.imageStore.HasPulledBefore(parsedRef.Hostname(), desc.Digest)
+				if err != nil {
+					// Couldn't check the cache, better to continue with the pull
+					return nil, nil
+				} else if ok {
+					return nil, containerdimages.ErrSkipDesc
+				}
+				c.imageStore.RecordPull(parsedRef.Hostname(), desc.Digest)
 			}
 			return nil, nil
 		}
@@ -114,6 +135,7 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		containerd.WithPullSnapshotter(c.getDefaultSnapshotterForSandbox(r.GetSandboxConfig())),
 		containerd.WithPullUnpack,
 		containerd.WithPullLabel(imageLabelKey, imageLabelValue),
+		containerd.WithImageHandler(pullCacheHandler),
 		containerd.WithImageHandler(imageHandler),
 		containerd.WithPullLabels(diff.FilterDiffLabels(r.GetSandboxConfig().GetAnnotations())),
 		containerd.WithUnpackOpts([]containerd.UnpackOpt{

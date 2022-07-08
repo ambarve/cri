@@ -47,11 +47,7 @@ type matchComparer struct {
 // Match matches platform with the same windows major, minor
 // and build version.
 func (m matchComparer) Match(p imagespec.Platform) bool {
-	if m.defaults.Match(p) {
-		// TODO(windows): Figure out whether OSVersion is deprecated.
-		return strings.HasPrefix(p.OSVersion, m.osVersionPrefix)
-	}
-	return false
+	return m.defaults.Match(p)
 }
 
 // Less sorts matched platforms in front of other platforms.

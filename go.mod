@@ -19,7 +19,6 @@ require (
 	github.com/emicklei/go-restful v2.15.0+incompatible
 	github.com/gogo/protobuf v1.3.2
 	github.com/golang/protobuf v1.5.2
-	github.com/j-keck/arping v1.0.2 // indirect
 	github.com/moby/sys/signal v0.6.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/opencontainers/image-spec v1.0.3-0.20211202183452-c5a74bcca799
@@ -48,7 +47,8 @@ require (
 )
 
 replace (
-	github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220425183035-cd93a51edecf // fork/release/1.6 cd93a51edecf8ad06e6f6031944a6099581ef814
+	//TODO(ambarve): vendor latest containerd once containerd PR is merged.
+	github.com/containerd/containerd => ../containerd
 	github.com/opencontainers/image-spec => github.com/kevpar/image-spec v1.0.2-0.20201102000608-deb02d24daef // fork
 	// replace genproto and grpc to prevent panic in ttrpc module
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63

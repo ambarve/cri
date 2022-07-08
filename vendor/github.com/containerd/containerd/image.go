@@ -305,6 +305,7 @@ func WithSnapshotterPlatformCheck() UnpackOpt {
 	}
 }
 
+// WithUnpackConfigApplyOpts sets ApplyOpts for UnpackConfig
 func WithUnpackConfigApplyOpts(opts ...diff.ApplyOpt) UnpackOpt {
 	return func(_ context.Context, uc *UnpackConfig) error {
 		uc.ApplyOpts = append(uc.ApplyOpts, opts...)

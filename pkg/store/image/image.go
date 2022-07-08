@@ -19,6 +19,7 @@ package image
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 
 	"github.com/containerd/containerd"
@@ -58,6 +59,8 @@ type Store struct {
 	client *containerd.Client
 	// store is the internal image store indexed by image id.
 	store *store
+	// imagePullCache is a cache of all digests and corresponding registries that have been pulled from
+	imagePullCache map[string]struct{}
 }
 
 // NewStore creates an image store.
@@ -69,7 +72,20 @@ func NewStore(client *containerd.Client) *Store {
 			images:    make(map[string]Image),
 			digestSet: digestset.NewSet(),
 		},
+		imagePullCache: make(map[string]struct{}),
 	}
+}
+
+func (s *Store) HasPulledBefore(registry string, blobSha imagedigest.Digest) (bool, error) {
+	key := fmt.Sprintf("%s%s", registry, blobSha.String())
+	_, ok := s.imagePullCache[key]
+	return ok, nil
+}
+
+func (s *Store) RecordPull(registry string, blobSha imagedigest.Digest) error {
+	key := fmt.Sprintf("%s%s", registry, blobSha.String())
+	s.imagePullCache[key] = struct{}{}
+	return nil
 }
 
 // Update updates cache for a reference.
