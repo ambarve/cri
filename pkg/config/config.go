@@ -75,6 +75,10 @@ type ContainerdConfig struct {
 	// result of the first instead of all of them unpacking and the others simply getting garbage
 	// collected afterwards.
 	DisableSameLayerUnpack bool `toml:"disable_same_layer_unpack" json:"disableSameLayerUnpack"`
+
+	// EnableImagePullRecord enables recording of each image pull done via CRI. This record is used
+	// to check if a certain blob has been already pulled from a certain registry before.
+	EnableImagePullRecord bool `toml:"enable_image_pull_record" json:"enableImagePullRecord"`
 }
 
 // CniConfig contains toml config related to cni

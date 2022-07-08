@@ -34,6 +34,7 @@ require (
 	github.com/syndtr/gocapability v0.0.0-20200815063812-42c35b437635
 	github.com/urfave/cli v1.22.2
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
+	go.etcd.io/bbolt v1.3.6
 	golang.org/x/net v0.0.0-20211216030914-fe4d6282115f
 	golang.org/x/sys v0.0.0-20211216021012-1d35b9e2eb4e
 	google.golang.org/grpc v1.43.0
@@ -48,7 +49,8 @@ require (
 )
 
 replace (
-	github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220425183035-cd93a51edecf // fork/release/1.6 cd93a51edecf8ad06e6f6031944a6099581ef814
+	//TODO(ambarve): vendor latest containerd once containerd PR is merged.
+	github.com/containerd/containerd => ../containerd
 	// replace genproto and grpc to prevent panic in ttrpc module
 	google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
 )

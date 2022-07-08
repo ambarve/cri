@@ -117,13 +117,18 @@ func NewCRIService(config criconfig.Config, client *containerd.Client) (CRIServi
 		os:                          osinterface.RealOS{},
 		sandboxStore:                sandboxstore.NewStore(),
 		containerStore:              containerstore.NewStore(),
-		imageStore:                  imagestore.NewStore(client),
 		snapshotStore:               snapshotstore.NewStore(),
 		sandboxNameIndex:            registrar.NewRegistrar(),
 		containerNameIndex:          registrar.NewRegistrar(),
 		initialized:                 atomic.NewBool(false),
 		unpackDuplicationSuppressor: kmutex.New(),
 	}
+
+	istore, err := imagestore.NewStoreWithPersistence(client, config.RootDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init image store: %s", err)
+	}
+	c.imageStore = istore
 
 	if c.config.DisableHTTP2Client {
 		env := "http2client=0"

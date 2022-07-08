@@ -40,6 +40,64 @@ import (
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 )
 
+// getImagePullCacheHandler returns an image handler (that will be run by containerd while
+// pulling blobs for the images) that maintains a cache of which blobs have been already
+// pulled from which registries.  If a blob is present in the content store _AND_ if it
+// has been already pulled from the given registry (hostname part of the image ref) then
+// this handler will skip any further processing of this blob.  In all other cases the
+// blob will be pulled into the content store (even if the same blob is already present
+// but the registry is different).
+// TODO(ambarve): add a flag to enable/disable this feature.
+func getImagePullCacheHandler(rctx context.Context, c *criService, imageRef string) (containerdimages.HandlerFunc, error) {
+	parsedRef, err := reference.Parse(imageRef)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to parse image ref: %s", err)
+	}
+
+	return func(ctx context.Context, desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
+		if !containerdimages.IsLayerType(desc.MediaType) && !containerdimages.IsKnownConfig(desc.MediaType) {
+			// do nothing for non-child blobs.
+			return nil, nil
+		}
+
+		var hasContent, pulledBefore bool
+
+		// check if we have this in containerd's content store
+		cinfo, err := c.client.ContentStore().Info(ctx, desc.Digest)
+		if err == nil && cinfo.Size == desc.Size {
+			hasContent = true
+		} else {
+			// Either it's content not found error, some other error or the
+			// content sizes don't match, in all cases we want to pull the
+			// image again.
+			log.G(ctx).WithError(err).WithFields(logrus.Fields{
+				"content size": cinfo.Size,
+				"desc size":    desc.Size,
+			}).Debugf("get content info failed or sizes don't match")
+		}
+
+		// check if we have pulled this before
+		pulledBefore, err = c.imageStore.HasPulledBefore(ctx, parsedRef.Hostname(), desc.Digest)
+		if err != nil {
+			log.G(ctx).WithError(err).Debug("failed to check if image has been pulled before")
+		}
+
+		if hasContent && pulledBefore {
+			log.G(ctx).Tracef("image records handler: skip pull for desc %+v", desc)
+			return nil, containerdimages.ErrSkipDesc
+		}
+
+		// We have to pull this blob, record it and continue.
+		if err = c.imageStore.RecordPull(ctx, parsedRef.Hostname(), desc.Digest); err != nil {
+			log.G(ctx).WithError(err).WithFields(logrus.Fields{
+				"host": parsedRef.Hostname(),
+				"desc": desc,
+			}).Warn("failed to record image pull")
+		}
+		return nil, nil
+	}, nil
+}
+
 // For image management:
 // 1) We have an in-memory metadata index to:
 //   a. Maintain ImageID -> RepoTags, ImageID -> RepoDigset relationships; ImageID
@@ -119,6 +177,14 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		containerd.WithUnpackOpts([]containerd.UnpackOpt{
 			containerd.WithUnpackDuplicationSuppressor(c.unpackDuplicationSuppressor),
 		}),
+	}
+
+	if c.config.ContainerdConfig.EnableImagePullRecord {
+		imagePullRecordHandler, err := getImagePullCacheHandler(ctx, c, ref)
+		if err != nil {
+			return nil, err
+		}
+		pullOpts = append(pullOpts, containerd.WithImageHandler(imagePullRecordHandler))
 	}
 
 	if !c.config.ContainerdConfig.DisableSnapshotAnnotations {

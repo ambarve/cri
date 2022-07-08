@@ -67,7 +67,7 @@ github.com/containerd/cgroups/v2
 github.com/containerd/cgroups/v2/stats
 # github.com/containerd/console v1.0.3
 github.com/containerd/console
-# github.com/containerd/containerd v1.6.1 => github.com/kevpar/containerd v1.2.1-0.20220425183035-cd93a51edecf
+# github.com/containerd/containerd v1.6.1 => ../containerd
 ## explicit
 github.com/containerd/containerd
 github.com/containerd/containerd/api/events
@@ -445,6 +445,7 @@ github.com/xeipuuv/gojsonreference
 ## explicit
 github.com/xeipuuv/gojsonschema
 # go.etcd.io/bbolt v1.3.6
+## explicit
 go.etcd.io/bbolt
 # go.opencensus.io v0.23.0
 go.opencensus.io
@@ -715,5 +716,5 @@ k8s.io/utils/integer
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/containerd/containerd => github.com/kevpar/containerd v1.2.1-0.20220425183035-cd93a51edecf
+# github.com/containerd/containerd => ../containerd
 # google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
