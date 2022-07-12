@@ -20,6 +20,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/containerd/containerd"
@@ -32,6 +34,7 @@ import (
 	"github.com/pkg/errors"
 
 	storeutil "github.com/containerd/cri/pkg/store"
+	"github.com/containerd/cri/pkg/store/db"
 	"github.com/containerd/cri/pkg/util"
 )
 
@@ -59,8 +62,28 @@ type Store struct {
 	client *containerd.Client
 	// store is the internal image store indexed by image id.
 	store *store
-	// imagePullCache is a cache of all digests and corresponding registries that have been pulled from
-	imagePullCache map[string]struct{}
+	// db
+	db *db.MetaStore
+}
+
+// NewStoreWithPersistence creates a new image store with a bolt db to persist some metadata.
+func NewStoreWithPersistence(client *containerd.Client, root string) (*Store, error) {
+	if err := os.MkdirAll(root, 0755); err != nil {
+		return nil, err
+	}
+	db, err := db.NewMetaStore(filepath.Join(root, "cri.db"))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create db store: %s", err)
+	}
+	return &Store{
+		refCache: make(map[string]string),
+		client:   client,
+		store: &store{
+			images:    make(map[string]Image),
+			digestSet: digestset.NewSet(),
+		},
+		db: db,
+	}, nil
 }
 
 // NewStore creates an image store.
@@ -72,19 +95,34 @@ func NewStore(client *containerd.Client) *Store {
 			images:    make(map[string]Image),
 			digestSet: digestset.NewSet(),
 		},
-		imagePullCache: make(map[string]struct{}),
 	}
 }
 
-func (s *Store) HasPulledBefore(registry string, blobSha imagedigest.Digest) (bool, error) {
-	key := fmt.Sprintf("%s%s", registry, blobSha.String())
-	_, ok := s.imagePullCache[key]
-	return ok, nil
+func (s *Store) HasPulledBefore(ctx context.Context, registry string, blob imagedigest.Digest) (bool, error) {
+	ctx, tx, err := s.db.TransactionContext(ctx, false)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+	return db.HasPullRecord(ctx, registry, blob)
 }
 
-func (s *Store) RecordPull(registry string, blobSha imagedigest.Digest) error {
-	key := fmt.Sprintf("%s%s", registry, blobSha.String())
-	s.imagePullCache[key] = struct{}{}
+func (s *Store) RecordPull(ctx context.Context, registry string, blob imagedigest.Digest) (err error) {
+	ctx, tx, err := s.db.TransactionContext(ctx, true)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	err = db.RecordPull(ctx, registry, blob)
+	if err != nil {
+		return err
+	}
+	tx.Commit()
 	return nil
 }
 

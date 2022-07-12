@@ -442,6 +442,7 @@ github.com/xeipuuv/gojsonreference
 ## explicit
 github.com/xeipuuv/gojsonschema
 # go.etcd.io/bbolt v1.3.6
+## explicit
 go.etcd.io/bbolt
 # go.opencensus.io v0.23.0
 go.opencensus.io

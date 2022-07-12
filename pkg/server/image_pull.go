@@ -116,14 +116,14 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		pullCacheHandler containerdimages.HandlerFunc = func(_ context.Context,
 			desc imagespec.Descriptor) ([]imagespec.Descriptor, error) {
 			if containerdimages.IsLayerType(desc.MediaType) || containerdimages.IsKnownConfig(desc.MediaType) {
-				ok, err := c.imageStore.HasPulledBefore(parsedRef.Hostname(), desc.Digest)
-				if err != nil {
-					// Couldn't check the cache, better to continue with the pull
-					return nil, nil
-				} else if ok {
+				ok, err := c.imageStore.HasPulledBefore(ctx, parsedRef.Hostname(), desc.Digest)
+				if err == nil && ok {
 					return nil, containerdimages.ErrSkipDesc
 				}
-				c.imageStore.RecordPull(parsedRef.Hostname(), desc.Digest)
+				if err != nil {
+					log.G(ctx).WithError(err).Debug("failed to check if image has been pulled before")
+				}
+				c.imageStore.RecordPull(ctx, parsedRef.Hostname(), desc.Digest)
 			}
 			return nil, nil
 		}
