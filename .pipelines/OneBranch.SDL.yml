@@ -1,12 +1,12 @@
 trigger:
-  - master
+  - main
 
 schedules:
   - cron: "0 2 * * 6" # run 7PM PST Fri.
     displayName: Weekly SDL Compliance
     branches:
       include:
-        - master
+        - main
     always: true
 
 variables:

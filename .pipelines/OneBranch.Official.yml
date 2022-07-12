@@ -1,5 +1,5 @@
 trigger:
-  - master
+  - main
 
 variables:
   WindowsContainerImage: cdpxwin1809.azurecr.io/global/vse2019:latest

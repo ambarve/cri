@@ -28,10 +28,10 @@ stages:
                   # Pull upstream changes
                   git remote add kevpar https://github.com/kevpar/cri.git
                   git fetch kevpar
-                  git merge kevpar/fork/windows_port/1.4
+                  git merge kevpar/fork/windows_port
                   
                   # OneBranch custom versioning for nightly builds
-                  gitVersion=$(git rev-parse kevpar/fork/windows_port/1.4)
+                  gitVersion=$(git rev-parse kevpar/fork/windows_port)
                   timeStamp=$(date --utc +%Y%m%d)
                   ver=ob-${gitVersion}-nightly-${timeStamp}-$(Build.BuildId)
                   echo '##vso[task.setvariable variable=versionString]'${ver//\//_}
