@@ -1,0 +1,145 @@
+{
+  "version": "1.0.0",
+  "suppressionSets": {
+    "default": {
+      "name": "default",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "lastUpdatedDate": "2022-03-30 17:53:27Z"
+    }
+  },
+  "results": {
+    "aac921e1cf6e4e73d6f08c137ccc6025f04b69fbeaaba354c598da478010a5a6": {
+      "signature": "aac921e1cf6e4e73d6f08c137ccc6025f04b69fbeaaba354c598da478010a5a6",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "037915a906b59d2e358a33580b05a79bf5bcb10f84841c2650a9449977abde90": {
+      "signature": "037915a906b59d2e358a33580b05a79bf5bcb10f84841c2650a9449977abde90",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "b8d760133a13d701ceccf925c1275bef89360fd3a5796f3b1c376377690d3039": {
+      "signature": "b8d760133a13d701ceccf925c1275bef89360fd3a5796f3b1c376377690d3039",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "523eac1a860bd19ca5ec3a080cc68e7b6b4115a00ee665abe5143071c2a4abef": {
+      "signature": "523eac1a860bd19ca5ec3a080cc68e7b6b4115a00ee665abe5143071c2a4abef",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "38f8c3886673769739e04dc287ee1e5886c95db1b71997b5d459096b9a50a9db": {
+      "signature": "38f8c3886673769739e04dc287ee1e5886c95db1b71997b5d459096b9a50a9db",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "10e9b513958bcf2f740bf4aa811be2b5e2408068f6e1d707a3718928da4ef949": {
+      "signature": "10e9b513958bcf2f740bf4aa811be2b5e2408068f6e1d707a3718928da4ef949",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "2c672ae88599b90591af9c5ad5a4a5417ad70ce77e07bfd86469ed8a5c2e3a10": {
+      "signature": "2c672ae88599b90591af9c5ad5a4a5417ad70ce77e07bfd86469ed8a5c2e3a10",
+      "target": "pkg/server/image_pull_test.go",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "credscan",
+      "ruleId": "CSCAN-GENERAL0060",
+      "justification": "False-positive in tests.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "017e16e16457f4a678f671f22265319a30b21b8a1cc0c92afdf53f60ec2b0cdd": {
+      "signature": "017e16e16457f4a678f671f22265319a30b21b8a1cc0c92afdf53f60ec2b0cdd",
+      "target": "vendor/go.etcd.io/bbolt/README.md",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "policheck",
+      "ruleId": "183125",
+      "justification": "Not Microsoft-owned.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "1569f6b8a8833821cd1753e6bffb9ed0b3e0e20b55af7a45c1c6f967b893ec4c": {
+      "signature": "1569f6b8a8833821cd1753e6bffb9ed0b3e0e20b55af7a45c1c6f967b893ec4c",
+      "target": "vendor/google.golang.org/grpc/README.md",
+      "memberOf": [
+        "default"
+      ],
+      "tool": "policheck",
+      "ruleId": "79569",
+      "justification": "Not Microsoft-owned.",
+      "createdDate": "2021-04-06 07:22:15Z",
+      "expirationDate": null,
+      "type": null
+    },
+    "6191b0916a37c9d69c67f93482d4e245648bf3b5b1de8c344e81a212d6dca8fa": {
+        "signature": "6191b0916a37c9d69c67f93482d4e245648bf3b5b1de8c344e81a212d6dca8fa",
+	"alternativeSignatures": [
+	    "7c9c909206edb2d811bacc2a1fcbd7ac563cb1da91460106858c2b9fa6842f52"
+	],
+	"target": "pkg/server/streaming.go",
+	"memberOf": [
+	    "default"
+	],
+	"tool": "semmle",
+	"ruleId": "SM03511",
+	"justification": "Not Microsoft-owned.",
+	"createdDate": "2022-03-30 18:33:54Z",
+	"expirationDate": null,
+	"type": null
+    }
+  }
+}

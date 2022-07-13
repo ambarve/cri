@@ -1,0 +1,60 @@
+# Build stages shared between Official, Buddy and nightly builds.
+# Nightly parameter is set to 'true' for nightly builds.
+# The parent template must include ContainerPlatform/ContainerPlatform repository with "cplat" alias
+parameters:
+  name: Nightly
+  type: boolean
+  default: false
+
+stages:
+  - stage: build_repo
+    jobs:
+
+      - ${{ if not(eq(parameters.Nightly, true)) }}:
+        - template: .pipelines/templates/build/version.yml@cplat
+
+      - job: build
+        pool:
+          type: linux
+        variables:
+          ob_outputDirectory: '$(Build.StagingDirectory)'
+        steps:
+          - ${{ if eq(parameters.Nightly, true) }}:
+              - script: |
+                  set -eux
+
+                  git config user.email "containerplat-dev@microsoft.com"
+                  git config user.name "ContainerPlat"
+                  # Pull upstream changes
+                  git remote add kevpar https://github.com/kevpar/cri.git
+                  git fetch kevpar
+                  git merge kevpar/fork/windows_port
+                  
+                  # OneBranch custom versioning for nightly builds
+                  gitVersion=$(git rev-parse kevpar/fork/windows_port)
+                  timeStamp=$(date --utc +%Y%m%d)
+                  ver=ob-${gitVersion}-nightly-${timeStamp}-$(Build.BuildId)
+                  echo '##vso[task.setvariable variable=versionString]'${ver//\//_}
+                displayName: Merge upstream changes for nightly build and set custom version
+
+              - task: onebranch.pipeline.version@1
+                inputs:
+                  system: 'Custom'
+                  customVersion: '$(versionString)'
+
+          - script: |
+              set -eux
+
+              mkdir -p $OUT_DIR
+
+              go build -o $OUT_DIR github.com/containerd/cri/cmd/containerd
+              go build -o $OUT_DIR github.com/containerd/cri/cmd/ctr
+            env:
+              GOPATH: $(Pipeline.Workspace)/s
+              GO111MODULE: off
+              GOOS: windows
+              OUT_DIR: '$(Build.StagingDirectory)/out'
+
+      - template: .pipelines/templates/build/sign.yml@cplat
+        parameters:
+          parentJob: build

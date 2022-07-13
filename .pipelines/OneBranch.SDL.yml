@@ -1,0 +1,39 @@
+trigger:
+  - main
+
+schedules:
+  - cron: "0 2 * * 6" # run 7PM PST Fri.
+    displayName: Weekly SDL Compliance
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  WindowsContainerImage: cdpxwin1809.azurecr.io/global/vse2019:latest
+  LGTM.UploadSnapshot: true
+  DisableDockerDetector: true
+
+resources:
+  repositories:
+    - repository: ob-templates
+      type: git
+      name: OneBranch.Pipelines/GovernedTemplates
+      ref: refs/heads/master
+    - repository: cplat
+      type: git
+      name: ContainerPlatform/ContainerPlatform
+      ref: refs/heads/master
+
+
+extends:
+  template: v2/OneBranch.NonOfficial.CrossPlat.yml@ob-templates
+  parameters:
+    git:
+      path: s/src/github.com/containerd/cri
+    globalSdl:
+      suppression:
+        suppressionFile: $(Build.SourcesDirectory)\.config\.gdnsuppress
+        suppressionSet: default
+    stages:
+      - template: .pipelines/templates/build/additional-sdl.yml@cplat
