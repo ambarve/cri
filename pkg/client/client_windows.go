@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*
@@ -19,6 +20,7 @@ limitations under the License.
 package client
 
 import (
+	"context"
 	"net"
 	"strings"
 	"time"
@@ -29,13 +31,17 @@ import (
 
 // GetAddressAndDialer returns a local Windows named pipe dialer if 'endpoint'
 // is a named pipe path else returns a dialer for the specific protocol.
-func GetAddressAndDialer(endpoint string) (string, func(addr string, timeout time.Duration) (net.Conn, error), error) {
+func GetAddressAndDialer(endpoint string) (string, func(ctx context.Context, addr string) (net.Conn, error), error) {
 	if strings.HasPrefix(endpoint, "\\\\.\\pipe") {
 		return endpoint, dial, nil
 	}
 	return util.GetAddressAndDialer(endpoint)
 }
 
-func dial(addr string, timeout time.Duration) (net.Conn, error) {
-	return winio.DialPipe(addr, &timeout)
+func dial(ctx context.Context, addr string) (net.Conn, error) {
+	if d, ok := ctx.Deadline(); ok {
+		duration := time.Until(d)
+		return winio.DialPipe(addr, &duration)
+	}
+	return winio.DialPipe(addr, nil)
 }
