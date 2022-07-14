@@ -1,5 +1,3 @@
-//go:build windows
-
 package vmcompute
 
 import (
@@ -7,13 +5,12 @@ import (
 	"syscall"
 	"time"
 
-	"go.opencensus.io/trace"
-
 	"github.com/Microsoft/hcsshim/internal/interop"
 	"github.com/Microsoft/hcsshim/internal/log"
 	"github.com/Microsoft/hcsshim/internal/logfields"
 	"github.com/Microsoft/hcsshim/internal/oc"
 	"github.com/Microsoft/hcsshim/internal/timeout"
+	"go.opencensus.io/trace"
 )
 
 //go:generate go run ../../mksyscall_windows.go -output zsyscall_windows.go vmcompute.go
@@ -392,12 +389,7 @@ func HcsCreateProcess(ctx gcontext.Context, computeSystem HcsSystem, processPara
 		}
 		oc.SetSpanStatus(span, hr)
 	}()
-	if span.IsRecordingEvents() {
-		// wont handle v1 process parameters
-		if s, err := log.ScrubProcessParameters(processParameters); err == nil {
-			span.AddAttributes(trace.StringAttribute("processParameters", s))
-		}
-	}
+	span.AddAttributes(trace.StringAttribute("processParameters", processParameters))
 
 	return processInformation, process, result, execute(ctx, timeout.SyscallWatcher, func() error {
 		var resultp *uint16

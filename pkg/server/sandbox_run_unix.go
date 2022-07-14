@@ -135,7 +135,7 @@ func (c *criService) RunPodSandbox(ctx context.Context, r *runtime.RunPodSandbox
 		defer func() {
 			if retErr != nil {
 				// Teardown network if an error is returned.
-				if err := c.teardownPod(id, sandbox.NetNSPath, config); err != nil {
+				if err := c.teardownPod(ctx, id, sandbox.NetNSPath, config); err != nil {
 					log.G(ctx).WithError(err).Errorf("Failed to destroy network for sandbox %q", id)
 				}
 			}

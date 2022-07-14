@@ -1,5 +1,3 @@
-//go:build windows
-
 package hcs
 
 import (
@@ -52,9 +50,6 @@ var (
 
 	// ErrUnexpectedValue is an error encountered when hcs returns an invalid value
 	ErrUnexpectedValue = errors.New("unexpected value returned from hcs")
-
-	// ErrOperationDenied is an error when hcs attempts an operation that is explicitly denied
-	ErrOperationDenied = errors.New("operation denied")
 
 	// ErrVmcomputeAlreadyStopped is an error encountered when a shutdown or terminate request is made on a stopped container
 	ErrVmcomputeAlreadyStopped = syscall.Errno(0xc0370110)

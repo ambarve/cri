@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
-	"go.opencensus.io/trace"
 )
 
 var (
@@ -38,34 +37,33 @@ type (
 	loggerKey struct{}
 )
 
-// RFC3339NanoFixed is time.RFC3339Nano with nanoseconds padded using zeros to
-// ensure the formatted time is always the same number of characters.
-const RFC3339NanoFixed = "2006-01-02T15:04:05.000000000Z07:00"
+const (
+	// RFC3339NanoFixed is time.RFC3339Nano with nanoseconds padded using zeros to
+	// ensure the formatted time is always the same number of characters.
+	RFC3339NanoFixed = "2006-01-02T15:04:05.000000000Z07:00"
+
+	// TextFormat represents the text logging format
+	TextFormat = "text"
+
+	// JSONFormat represents the JSON logging format
+	JSONFormat = "json"
+)
 
 // WithLogger returns a new context with the provided logger. Use in
 // combination with logger.WithField(s) for great effect.
 func WithLogger(ctx context.Context, logger *logrus.Entry) context.Context {
-	return context.WithValue(ctx, loggerKey{}, logger)
+	e := logger.WithContext(ctx)
+	return context.WithValue(ctx, loggerKey{}, e)
 }
 
 // GetLogger retrieves the current logger from the context. If no logger is
-// available, the default logger is returned. If the context has a span
-// associated with it, add correlating information to the returned logger.
+// available, the default logger is returned.
 func GetLogger(ctx context.Context) *logrus.Entry {
-	e, _ := ctx.Value(loggerKey{}).(*logrus.Entry)
-	if e == nil {
-		e = L
+	logger := ctx.Value(loggerKey{})
+
+	if logger == nil {
+		return L.WithContext(ctx)
 	}
-	if span := trace.FromContext(ctx); span != nil {
-		spanCtx := span.SpanContext()
-		// The field names used are are specified in the OpenCensus log
-		// correlation document, tweaked to match with general Golang naming
-		// conventions.
-		// https://github.com/census-instrumentation/opencensus-specs/blob/master/trace/LogCorrelation.md
-		e = e.WithFields(logrus.Fields{
-			"traceID": spanCtx.TraceID.String(),
-			"spanID":  spanCtx.SpanID.String(),
-		})
-	}
-	return e
+
+	return logger.(*logrus.Entry)
 }

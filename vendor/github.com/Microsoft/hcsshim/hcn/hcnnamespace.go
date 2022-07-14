@@ -1,5 +1,3 @@
-//go:build windows
-
 package hcn
 
 import (
@@ -29,7 +27,7 @@ type NamespaceResourceContainer struct {
 type NamespaceResourceType string
 
 var (
-	// NamespaceResourceTypeContainer are containers associated with a Namespace.
+	// NamespaceResourceTypeContainer are contianers associated with a Namespace.
 	NamespaceResourceTypeContainer NamespaceResourceType = "Container"
 	// NamespaceResourceTypeEndpoint are endpoints associated with a Namespace.
 	NamespaceResourceTypeEndpoint NamespaceResourceType = "Endpoint"

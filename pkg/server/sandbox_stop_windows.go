@@ -30,7 +30,7 @@ import (
 func (c *criService) doStopPodSandbox(ctx context.Context, id string, sandbox sandboxstore.Sandbox) error {
 	// Teardown network for sandbox.
 	if sandbox.NetNSPath != "" && sandbox.NetNS != nil {
-		if teardownErr := c.teardownPod(id, sandbox.NetNSPath, sandbox.Config); teardownErr != nil {
+		if teardownErr := c.teardownPod(ctx, id, sandbox.NetNSPath, sandbox.Config); teardownErr != nil {
 			return errors.Wrapf(teardownErr, "failed to destroy network for sandbox %q", id)
 		}
 		/*TODO:It is still possible that containerd crashes after we teardown the network, but before we remove the network namespace.

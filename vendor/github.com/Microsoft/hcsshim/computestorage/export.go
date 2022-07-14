@@ -1,5 +1,3 @@
-//go:build windows
-
 package computestorage
 
 import (
@@ -30,17 +28,17 @@ func ExportLayer(ctx context.Context, layerPath, exportFolderPath string, layerD
 		trace.StringAttribute("exportFolderPath", exportFolderPath),
 	)
 
-	ldBytes, err := json.Marshal(layerData)
+	ldbytes, err := json.Marshal(layerData)
 	if err != nil {
 		return err
 	}
 
-	oBytes, err := json.Marshal(options)
+	obytes, err := json.Marshal(options)
 	if err != nil {
 		return err
 	}
 
-	err = hcsExportLayer(layerPath, exportFolderPath, string(ldBytes), string(oBytes))
+	err = hcsExportLayer(layerPath, exportFolderPath, string(ldbytes), string(obytes))
 	if err != nil {
 		return errors.Wrap(err, "failed to export layer")
 	}

@@ -1,3 +1,4 @@
+//go:build !windows && !linux
 // +build !windows,!linux
 
 /*
@@ -20,18 +21,23 @@ package shim
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"net/url"
+	"os"
 	"sync"
 	"syscall"
 
 	"github.com/containerd/console"
+	"github.com/containerd/containerd/namespaces"
+	"github.com/containerd/containerd/pkg/process"
 	"github.com/containerd/fifo"
 )
 
 type unixPlatform struct {
 }
 
-func (p *unixPlatform) CopyConsole(ctx context.Context, console console.Console, stdin, stdout, stderr string, wg *sync.WaitGroup) (console.Console, error) {
+func (p *unixPlatform) CopyConsole(ctx context.Context, console console.Console, id, stdin, stdout, stderr string, wg *sync.WaitGroup) (cons console.Console, retErr error) {
 	var cwg sync.WaitGroup
 	if stdin != "" {
 		in, err := fifo.OpenFifo(ctx, stdin, syscall.O_RDONLY, 0)
@@ -47,28 +53,97 @@ func (p *unixPlatform) CopyConsole(ctx context.Context, console console.Console,
 			io.CopyBuffer(console, in, *p)
 		}()
 	}
-	outw, err := fifo.OpenFifo(ctx, stdout, syscall.O_WRONLY, 0)
+	uri, err := url.Parse(stdout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to parse stdout uri: %w", err)
 	}
-	outr, err := fifo.OpenFifo(ctx, stdout, syscall.O_RDONLY, 0)
-	if err != nil {
-		return nil, err
-	}
-	wg.Add(1)
-	cwg.Add(1)
-	go func() {
-		cwg.Done()
-		p := bufPool.Get().(*[]byte)
-		defer bufPool.Put(p)
 
-		io.CopyBuffer(outw, console, *p)
-		console.Close()
-		outr.Close()
-		outw.Close()
-		wg.Done()
-	}()
-	cwg.Wait()
+	switch uri.Scheme {
+	case "binary":
+		ns, err := namespaces.NamespaceRequired(ctx)
+		if err != nil {
+			return nil, err
+		}
+		cmd := process.NewBinaryCmd(uri, id, ns)
+
+		// In case of unexpected errors during logging binary start, close open pipes
+		var filesToClose []*os.File
+
+		defer func() {
+			if retErr != nil {
+				process.CloseFiles(filesToClose...)
+			}
+		}()
+
+		// Create pipe to be used by logging binary for Stdout
+		outR, outW, err := os.Pipe()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create stdout pipes: %w", err)
+		}
+		filesToClose = append(filesToClose, outR)
+
+		// Stderr is created for logging binary but unused when terminal is true
+		serrR, _, err := os.Pipe()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create stderr pipes: %w", err)
+		}
+		filesToClose = append(filesToClose, serrR)
+
+		r, w, err := os.Pipe()
+		if err != nil {
+			return nil, err
+		}
+		filesToClose = append(filesToClose, r)
+
+		cmd.ExtraFiles = append(cmd.ExtraFiles, outR, serrR, w)
+
+		wg.Add(1)
+		cwg.Add(1)
+		go func() {
+			cwg.Done()
+			io.Copy(outW, console)
+			outW.Close()
+			wg.Done()
+		}()
+
+		if err := cmd.Start(); err != nil {
+			return nil, fmt.Errorf("failed to start logging binary process: %w", err)
+		}
+
+		// Close our side of the pipe after start
+		if err := w.Close(); err != nil {
+			return nil, fmt.Errorf("failed to close write pipe after start: %w", err)
+		}
+
+		// Wait for the logging binary to be ready
+		b := make([]byte, 1)
+		if _, err := r.Read(b); err != nil && err != io.EOF {
+			return nil, fmt.Errorf("failed to read from logging binary: %w", err)
+		}
+		cwg.Wait()
+
+	default:
+		outw, err := fifo.OpenFifo(ctx, stdout, syscall.O_WRONLY, 0)
+		if err != nil {
+			return nil, err
+		}
+		outr, err := fifo.OpenFifo(ctx, stdout, syscall.O_RDONLY, 0)
+		if err != nil {
+			return nil, err
+		}
+		wg.Add(1)
+		cwg.Add(1)
+		go func() {
+			cwg.Done()
+			p := bufPool.Get().(*[]byte)
+			defer bufPool.Put(p)
+			io.CopyBuffer(outw, console, *p)
+			outw.Close()
+			outr.Close()
+			wg.Done()
+		}()
+		cwg.Wait()
+	}
 	return console, nil
 }
 

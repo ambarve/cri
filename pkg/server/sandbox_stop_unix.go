@@ -38,7 +38,7 @@ func (c *criService) doStopPodSandbox(ctx context.Context, id string, sandbox sa
 		} else if closed {
 			netNSPath = ""
 		}
-		if err := c.teardownPod(id, netNSPath, sandbox.Config); err != nil {
+		if err := c.teardownPod(ctx, id, netNSPath, sandbox.Config); err != nil {
 			return errors.Wrapf(err, "failed to destroy network for sandbox %q", id)
 		}
 		if err := sandbox.NetNS.Remove(); err != nil {

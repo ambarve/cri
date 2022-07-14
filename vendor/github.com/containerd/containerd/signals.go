@@ -1,12 +1,9 @@
 /*
    Copyright The containerd Authors.
-
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-
        http://www.apache.org/licenses/LICENSE-2.0
-
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -24,7 +21,7 @@ import (
 
 	"github.com/containerd/containerd/content"
 	"github.com/containerd/containerd/images"
-	"github.com/containerd/containerd/platforms"
+	"github.com/moby/sys/signal"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -41,7 +38,7 @@ func GetStopSignal(ctx context.Context, container Container, defaultSignal sysca
 	}
 
 	if stopSignal, ok := labels[StopSignalLabel]; ok {
-		return ParseSignal(stopSignal)
+		return signal.ParseSignal(stopSignal)
 	}
 
 	return defaultSignal, nil
@@ -49,6 +46,10 @@ func GetStopSignal(ctx context.Context, container Container, defaultSignal sysca
 
 // GetOCIStopSignal retrieves the stop signal specified in the OCI image config
 func GetOCIStopSignal(ctx context.Context, image Image, defaultSignal string) (string, error) {
+	_, err := signal.ParseSignal(defaultSignal)
+	if err != nil {
+		return "", err
+	}
 	ic, err := image.Config(ctx)
 	if err != nil {
 		return "", err
@@ -56,7 +57,6 @@ func GetOCIStopSignal(ctx context.Context, image Image, defaultSignal string) (s
 	var (
 		ociimage v1.Image
 		config   v1.ImageConfig
-		platform string = platforms.DefaultSpec().OS
 	)
 	switch ic.MediaType {
 	case v1.MediaTypeImageConfig, images.MediaTypeDockerSchema2Config:
@@ -69,14 +69,8 @@ func GetOCIStopSignal(ctx context.Context, image Image, defaultSignal string) (s
 			return "", err
 		}
 		config = ociimage.Config
-		platform = ociimage.OS
 	default:
 		return "", fmt.Errorf("unknown image config media type %s", ic.MediaType)
-	}
-
-	// verify that default signal is valid
-	if _, err := ParsePlatformSignal(defaultSignal, platform); err != nil {
-		return "", err
 	}
 
 	if config.StopSignal == "" {
@@ -84,4 +78,13 @@ func GetOCIStopSignal(ctx context.Context, image Image, defaultSignal string) (s
 	}
 
 	return config.StopSignal, nil
+}
+
+// ParseSignal parses a given string into a syscall.Signal
+// the rawSignal can be a string with "SIG" prefix,
+// or a signal number in string format.
+//
+// Deprecated: Use github.com/moby/sys/signal instead.
+func ParseSignal(rawSignal string) (syscall.Signal, error) {
+	return signal.ParseSignal(rawSignal)
 }

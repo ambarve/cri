@@ -1,5 +1,3 @@
-//go:build windows
-
 package hcs
 
 import (
@@ -594,7 +592,7 @@ func (computeSystem *System) unregisterCallback(ctx context.Context) error {
 		return nil
 	}
 
-	// hcsUnregisterComputeSystemCallback has its own synchronization
+	// hcsUnregisterComputeSystemCallback has its own syncronization
 	// to wait for all callbacks to complete. We must NOT hold the callbackMapLock.
 	err := vmcompute.HcsUnregisterComputeSystemCallback(ctx, handle)
 	if err != nil {

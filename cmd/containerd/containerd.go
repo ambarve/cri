@@ -23,6 +23,7 @@ import (
 	"time"
 
 	_ "github.com/containerd/containerd/diff/walking/plugin"
+	_ "github.com/containerd/containerd/events/plugin"
 	_ "github.com/containerd/containerd/gc/scheduler"
 	_ "github.com/containerd/containerd/services/containers"
 	_ "github.com/containerd/containerd/services/content"

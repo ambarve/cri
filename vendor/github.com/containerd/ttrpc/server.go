@@ -18,6 +18,7 @@ package ttrpc
 
 import (
 	"context"
+	"errors"
 	"io"
 	"math/rand"
 	"net"
@@ -25,7 +26,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -318,7 +318,6 @@ func (c *serverConn) run(sctx context.Context) {
 		active      int
 		state       connState = connStateIdle
 		responses             = make(chan response)
-		responseErr           = make(chan error)
 		requests              = make(chan request)
 		recvErr               = make(chan error, 1)
 		shutdown              = c.shutdown
@@ -413,36 +412,6 @@ func (c *serverConn) run(sctx context.Context) {
 		}
 	}(recvErr)
 
-	go func(responseErr chan error) {
-		for {
-			select {
-			// We don't want a case for c.shutdown here, as that would cause us to exit
-			// immediately when it is signaled, rather than waiting for any active requests
-			// to complete first. Instead, once all the active requests have completed,
-			// the main loop will return and close done, which will cause us to exit as well.
-			case <-done:
-				return
-			case response := <-responses:
-				p, err := c.server.codec.Marshal(response.resp)
-				if err != nil {
-					logrus.WithError(err).Error("failed marshaling response")
-					responseErr <- err
-					return
-				}
-
-				if err := ch.send(response.id, messageTypeResponse, p); err != nil {
-					logrus.WithError(err).Error("failed sending message on channel")
-					responseErr <- err
-					return
-				}
-
-				// Send a nil error so that the main loop knows an active request has
-				// completed successfully.
-				responseErr <- nil
-			}
-		}
-	}(responseErr)
-
 	for {
 		newstate := state
 		switch {
@@ -480,12 +449,18 @@ func (c *serverConn) run(sctx context.Context) {
 				case <-done:
 				}
 			}(request.id)
-		case err := <-responseErr:
-			// responseErr sends nil if no error occurred in sending the response.
-			// In that case we just decrement the active count and continue.
+		case response := <-responses:
+			p, err := c.server.codec.Marshal(response.resp)
 			if err != nil {
+				logrus.WithError(err).Error("failed marshaling response")
 				return
 			}
+
+			if err := ch.send(response.id, messageTypeResponse, p); err != nil {
+				logrus.WithError(err).Error("failed sending message on channel")
+				return
+			}
+
 			active--
 		case err := <-recvErr:
 			// TODO(stevvooe): Not wildly clear what we should do in this

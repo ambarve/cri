@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	"github.com/containerd/containerd/integration/remote"
+	kubeletutil "github.com/containerd/containerd/integration/remote/util"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -35,8 +37,6 @@ import (
 	"google.golang.org/grpc"
 	cri "k8s.io/cri-api/pkg/apis"
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
-	"k8s.io/kubernetes/pkg/kubelet/remote"
-	kubeletutil "k8s.io/kubernetes/pkg/kubelet/util"
 
 	api "github.com/containerd/cri/pkg/api/v1"
 	"github.com/containerd/cri/pkg/client"

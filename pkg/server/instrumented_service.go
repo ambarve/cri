@@ -535,3 +535,11 @@ func (in *instrumentedService) ReopenContainerLog(ctx context.Context, r *runtim
 	res, err = in.c.ReopenContainerLog(ctrdutil.WithNamespace(ctx), r)
 	return res, errdefs.ToGRPC(err)
 }
+
+func (in *instrumentedService) PodSandboxStats(ctx context.Context, req *runtime.PodSandboxStatsRequest) (*runtime.PodSandboxStatsResponse, error) {
+	return nil, errdefs.ErrNotImplemented
+}
+
+func (in *instrumentedService) ListPodSandboxStats(ctx context.Context, req *runtime.ListPodSandboxStatsRequest) (*runtime.ListPodSandboxStatsResponse, error) {
+	return nil, errdefs.ErrNotImplemented
+}

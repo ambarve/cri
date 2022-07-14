@@ -17,7 +17,7 @@ limitations under the License.
 package util
 
 import (
-	"github.com/docker/distribution/reference"
+	reference "github.com/containerd/containerd/reference/docker"
 )
 
 // NormalizeImageRef normalizes the image reference following the docker convention. This is added

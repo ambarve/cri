@@ -47,6 +47,10 @@ type Image struct {
 	Size int64
 	// ImageSpec is the oci image structure which describes basic information about the image.
 	ImageSpec imagespec.Image
+	// ArgsEscaped is a non-standard extension that was introduced by Docker. It is used for
+	// Windows images to indicate that the command has already been escaped and should be
+	// used directly as the command line.
+	ArgsEscaped bool
 }
 
 // Store stores all images.
@@ -144,12 +148,29 @@ func getImage(ctx context.Context, i containerd.Image) (*Image, error) {
 		return nil, errors.Wrapf(err, "unmarshal image config %s", rb)
 	}
 
+	// imageExtended is a superset of the oci Image struct. It helps
+	// to deserialize `ArgsEscaped` which is a non-OCI field that is
+	// used by docker to determine how the image command should be
+	// interpreted
+	type imageExtended struct {
+		Config struct {
+			ArgsEscaped bool `json:"ArgsEscaped,omitempty"`
+		}
+	}
+	// Deserialize the extended image format for Windows.
+	var ociImageExtended imageExtended
+	if err := json.Unmarshal(rb, &ociImageExtended); err != nil {
+		return nil, errors.Wrapf(err, "unmarshal image config for ArgsEscaped %s", rb)
+	}
+	argsEscaped := ociImageExtended.Config.ArgsEscaped
+
 	return &Image{
-		ID:         id,
-		References: []string{i.Name()},
-		ChainID:    chainID.String(),
-		Size:       size,
-		ImageSpec:  ociimage,
+		ID:          id,
+		References:  []string{i.Name()},
+		ChainID:     chainID.String(),
+		Size:        size,
+		ImageSpec:   ociimage,
+		ArgsEscaped: argsEscaped,
 	}, nil
 }
 

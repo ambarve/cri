@@ -18,7 +18,8 @@ package v2
 
 import (
 	"context"
-	"io/ioutil"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -27,7 +28,6 @@ import (
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	cioutil "github.com/containerd/containerd/pkg/ioutil"
-	"github.com/pkg/errors"
 )
 
 const configFilename = "config.json"
@@ -48,7 +48,7 @@ func LoadBundle(ctx context.Context, root, id string) (*Bundle, error) {
 // NewBundle returns a new bundle on disk
 func NewBundle(ctx context.Context, root, state, id string, spec []byte) (b *Bundle, err error) {
 	if err := identifiers.Validate(id); err != nil {
-		return nil, errors.Wrapf(err, "invalid task id %s", id)
+		return nil, fmt.Errorf("invalid task id %s: %w", id, err)
 	}
 
 	ns, err := namespaces.NamespaceRequired(ctx)
@@ -73,7 +73,10 @@ func NewBundle(ctx context.Context, root, state, id string, spec []byte) (b *Bun
 	if err := os.MkdirAll(filepath.Dir(b.Path), 0711); err != nil {
 		return nil, err
 	}
-	if err := os.Mkdir(b.Path, 0711); err != nil {
+	if err := os.Mkdir(b.Path, 0700); err != nil {
+		return nil, err
+	}
+	if err := prepareBundleDirectoryPermissions(b.Path, spec); err != nil {
 		return nil, err
 	}
 	paths = append(paths, b.Path)
@@ -101,7 +104,7 @@ func NewBundle(ctx context.Context, root, state, id string, spec []byte) (b *Bun
 		return nil, err
 	}
 	// write the spec to the bundle
-	err = ioutil.WriteFile(filepath.Join(b.Path, configFilename), spec, 0666)
+	err = os.WriteFile(filepath.Join(b.Path, configFilename), spec, 0666)
 	return b, err
 }
 
@@ -136,10 +139,10 @@ func (b *Bundle) Delete(ctx context.Context) error {
 	}
 
 	if err := mount.UnmountAll(rootfs, 0); err != nil {
-		return errors.Wrapf(err, "unmount rootfs %s", rootfs)
+		return fmt.Errorf("unmount rootfs %s: %w", rootfs, err)
 	}
 	if err := os.Remove(rootfs); err != nil && !os.IsNotExist(err) {
-		return errors.Wrap(err, "failed to remove bundle rootfs")
+		return fmt.Errorf("failed to remove bundle rootfs: %w", err)
 	}
 	err = atomicDelete(b.Path)
 	if err == nil {
@@ -156,5 +159,18 @@ func (b *Bundle) Delete(ctx context.Context) error {
 			return err
 		}
 	}
-	return errors.Wrapf(err, "failed to remove both bundle and workdir locations: %v", err2)
+	return fmt.Errorf("failed to remove both bundle and workdir locations: %v: %w", err2, err)
+}
+
+// atomicDelete renames the path to a hidden file before removal
+func atomicDelete(path string) error {
+	// create a hidden dir for an atomic removal
+	atomicPath := filepath.Join(filepath.Dir(path), fmt.Sprintf(".%s", filepath.Base(path)))
+	if err := os.Rename(path, atomicPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return os.RemoveAll(atomicPath)
 }

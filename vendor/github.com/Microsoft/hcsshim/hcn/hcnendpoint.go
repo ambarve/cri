@@ -1,5 +1,3 @@
-//go:build windows
-
 package hcn
 
 import (
@@ -11,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// IpConfig is associated with an endpoint
+// IpConfig is assoicated with an endpoint
 type IpConfig struct {
 	IpAddress    string `json:",omitempty"`
 	PrefixLength uint8  `json:",omitempty"`

@@ -1,3 +1,4 @@
+//go:build !windows
 // +build !windows
 
 /*
@@ -29,10 +30,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/containerd/containerd/defaults"
 	"github.com/containerd/containerd/namespaces"
-	"github.com/containerd/containerd/pkg/dialer"
 	"github.com/containerd/containerd/sys"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -46,27 +46,23 @@ func getSysProcAttr() *syscall.SysProcAttr {
 	}
 }
 
-// SetScore sets the oom score for a process
-func SetScore(pid int) error {
-	return sys.SetOOMScore(pid, sys.OOMScoreMaxKillable)
-}
-
 // AdjustOOMScore sets the OOM score for the process to the parents OOM score +1
 // to ensure that they parent has a lower* score than the shim
+// if not already at the maximum OOM Score
 func AdjustOOMScore(pid int) error {
 	parent := os.Getppid()
 	score, err := sys.GetOOMScoreAdj(parent)
 	if err != nil {
-		return errors.Wrap(err, "get parent OOM score")
+		return fmt.Errorf("get parent OOM score: %w", err)
 	}
 	shimScore := score + 1
-	if err := sys.SetOOMScore(pid, shimScore); err != nil {
-		return errors.Wrap(err, "set shim OOM score")
+	if err := sys.AdjustOOMScore(pid, shimScore); err != nil {
+		return fmt.Errorf("set shim OOM score: %w", err)
 	}
 	return nil
 }
 
-const socketRoot = "/run/containerd"
+const socketRoot = defaults.DefaultStateDir
 
 // SocketAddress returns a socket address
 func SocketAddress(ctx context.Context, socketPath, id string) (string, error) {
@@ -80,9 +76,10 @@ func SocketAddress(ctx context.Context, socketPath, id string) (string, error) {
 
 // AnonDialer returns a dialer for a socket
 func AnonDialer(address string, timeout time.Duration) (net.Conn, error) {
-	return dialer.Dialer(socket(address).path(), timeout)
+	return net.DialTimeout("unix", socket(address).path(), timeout)
 }
 
+// AnonReconnectDialer returns a dialer for an existing socket on reconnection
 func AnonReconnectDialer(address string, timeout time.Duration) (net.Conn, error) {
 	return AnonDialer(address, timeout)
 }
@@ -93,19 +90,25 @@ func NewSocket(address string) (*net.UnixListener, error) {
 		sock = socket(address)
 		path = sock.path()
 	)
-	if !sock.isAbstract() {
+
+	isAbstract := sock.isAbstract()
+
+	if !isAbstract {
 		if err := os.MkdirAll(filepath.Dir(path), 0600); err != nil {
-			return nil, errors.Wrapf(err, "%s", path)
+			return nil, fmt.Errorf("%s: %w", path, err)
 		}
 	}
 	l, err := net.Listen("unix", path)
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0600); err != nil {
-		os.Remove(sock.path())
-		l.Close()
-		return nil, err
+
+	if !isAbstract {
+		if err := os.Chmod(path, 0600); err != nil {
+			os.Remove(sock.path())
+			l.Close()
+			return nil, err
+		}
 	}
 	return l.(*net.UnixListener), nil
 }

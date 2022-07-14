@@ -41,6 +41,7 @@ import (
 	ctrdutil "github.com/containerd/cri/pkg/containerd/util"
 	cio "github.com/containerd/cri/pkg/server/io"
 	containerstore "github.com/containerd/cri/pkg/store/container"
+	imagestore "github.com/containerd/cri/pkg/store/image"
 	"github.com/containerd/cri/pkg/util"
 	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
@@ -166,7 +167,7 @@ func (c *criService) CreateContainer(ctx context.Context, r *runtime.CreateConta
 		sandboxPlatform = "windows/amd64"
 	}
 
-	spec, err := c.generateContainerSpec(id, sandboxID, sandboxPid, sandbox.NetNSPath, config, sandboxConfig, sandboxPlatform, &image.ImageSpec)
+	spec, err := c.generateContainerSpec(id, sandboxID, sandboxPid, sandbox.NetNSPath, config, sandboxConfig, sandboxPlatform, &image)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to generate container %q spec", id)
 	}
@@ -299,7 +300,8 @@ func removeMount(s *runtimespec.Spec, dest string) {
 }
 
 func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxPid uint32, netnsPath string, config *runtime.ContainerConfig,
-	sandboxConfig *runtime.PodSandboxConfig, sandboxPlatform string, image *imagespec.Image) (*runtimespec.Spec, error) {
+	sandboxConfig *runtime.PodSandboxConfig, sandboxPlatform string, criImage *imagestore.Image) (*runtimespec.Spec, error) {
+	image := criImage.ImageSpec
 	// Creates a spec Generator with the default spec.
 	ctx := ctrdutil.NamespacedContext()
 	spec, err := oci.GenerateSpecWithPlatform(ctx, nil, sandboxPlatform, &containers.Container{ID: id})
@@ -315,7 +317,7 @@ func (c *criService) generateContainerSpec(id string, sandboxID string, sandboxP
 	}
 	g := newSpecGenerator(spec)
 
-	if err := setOCIProcessArgs(&g, config, image); err != nil {
+	if err := setOCIProcessArgs(&g, config, criImage); err != nil {
 		return nil, err
 	}
 

@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"k8s.io/kubernetes/pkg/kubelet/util"
+	"github.com/containerd/containerd/integration/remote/util"
 )
 
 // GetAddressAndDialer returns a local Windows named pipe dialer if 'endpoint'
