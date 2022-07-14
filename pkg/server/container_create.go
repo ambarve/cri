@@ -22,7 +22,6 @@ import (
 	"strings"
 
 	"github.com/containerd/typeurl"
-	imagespec "github.com/opencontainers/image-spec/specs-go/v1"
 	runtimespec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/opencontainers/runtime-tools/validate"
 	"github.com/pkg/errors"
@@ -32,6 +31,7 @@ import (
 	runtime "k8s.io/cri-api/pkg/apis/runtime/v1alpha2"
 
 	containerstore "github.com/containerd/cri/pkg/store/container"
+	imagestore "github.com/containerd/cri/pkg/store/image"
 	"github.com/containerd/cri/pkg/util"
 )
 
@@ -42,7 +42,8 @@ func init() {
 
 // setOCIProcessArgs sets process args. It returns error if the final arg list
 // is empty.
-func setOCIProcessArgs(g *generator, config *runtime.ContainerConfig, image *imagespec.Image) error {
+func setOCIProcessArgs(g *generator, config *runtime.ContainerConfig, criImage *imagestore.Image) error {
+	image := criImage.ImageSpec
 	command, args := config.GetCommand(), config.GetArgs()
 	// The following logic is migrated from https://github.com/moby/moby/blob/master/daemon/commit.go
 	// TODO(random-liu): Clearly define the commands overwrite behavior.
@@ -62,7 +63,7 @@ func setOCIProcessArgs(g *generator, config *runtime.ContainerConfig, image *ima
 	if ignoreArgsEscapedAnno, ok := config.Annotations["microsoft.io/ignore-args-escaped"]; ok {
 		ignoreArgsEscaped = ignoreArgsEscapedAnno == "true"
 	}
-	setProcessArgs(g, image.OS == "windows", image.Config.ArgsEscaped && !ignoreArgsEscaped, append(command, args...))
+	setProcessArgs(g, image.OS == "windows", criImage.ArgsEscaped && !ignoreArgsEscaped, append(command, args...))
 	return nil
 }
 
