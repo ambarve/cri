@@ -75,7 +75,7 @@ func (c *Client) Pull(ctx context.Context, ref string, opts ...RemoteOpt) (_ Ima
 		}
 	}
 
-	if pullCtx.Unpack {
+	if pullCtx.Unpack && !pullCtx.ContentForceDownload {
 		// unpacker only supports schema 2 image, for schema 1 this is noop.
 		u, err := c.newUnpacker(ctx, pullCtx)
 		if err != nil {
@@ -106,7 +106,7 @@ func (c *Client) Pull(ctx context.Context, ref string, opts ...RemoteOpt) (_ Ima
 	// NOTE(fuweid): unpacker defers blobs download. before create image
 	// record in ImageService, should wait for unpacking(including blobs
 	// download).
-	if pullCtx.Unpack {
+	if pullCtx.Unpack && !pullCtx.ContentForceDownload {
 		if unpackEg != nil {
 			if err := unpackEg.Wait(); err != nil {
 				return nil, err
@@ -199,7 +199,7 @@ func (c *Client) fetch(ctx context.Context, rCtx *RemoteContext, ref string, lim
 		}
 
 		handlers := append(rCtx.BaseHandlers,
-			remotes.FetchHandler(store, fetcher),
+			remotes.FetchHandler(store, fetcher, rCtx.ContentForceDownload),
 			convertibleHandler,
 			childrenHandler,
 			appendDistSrcLabelHandler,
