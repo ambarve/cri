@@ -75,7 +75,7 @@ func (c *Client) Pull(ctx context.Context, ref string, opts ...RemoteOpt) (_ Ima
 		}
 	}
 
-	if pullCtx.Unpack && !pullCtx.ContentForceDownload {
+	if pullCtx.Unpack {
 		// unpacker only supports schema 2 image, for schema 1 this is noop.
 		u, err := c.newUnpacker(ctx, pullCtx)
 		if err != nil {
@@ -106,7 +106,7 @@ func (c *Client) Pull(ctx context.Context, ref string, opts ...RemoteOpt) (_ Ima
 	// NOTE(fuweid): unpacker defers blobs download. before create image
 	// record in ImageService, should wait for unpacking(including blobs
 	// download).
-	if pullCtx.Unpack && !pullCtx.ContentForceDownload {
+	if pullCtx.Unpack {
 		if unpackEg != nil {
 			if err := unpackEg.Wait(); err != nil {
 				return nil, err

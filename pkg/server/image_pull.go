@@ -208,6 +208,9 @@ func (c *criService) PullImage(ctx context.Context, r *runtime.PullImageRequest)
 		// force containerd to download the content even if it already exists in
 		// the content store.
 		pullOpts = append(pullOpts, containerd.WithContentForceDownload())
+	}
+
+	if imageHandlerWrapper != nil {
 		pullOpts = append(pullOpts,
 			containerd.WithImageHandlerWrapper(imageHandlerWrapper))
 	}

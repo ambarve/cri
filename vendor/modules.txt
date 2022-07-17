@@ -67,7 +67,7 @@ github.com/containerd/cgroups/v2
 github.com/containerd/cgroups/v2/stats
 # github.com/containerd/console v1.0.3
 github.com/containerd/console
-# github.com/containerd/containerd v1.6.1 => ../containerd
+# github.com/containerd/containerd v1.6.1 => dev.azure.com/msazure/ContainerPlatform/_git/containerd.containerd.git v1.2.1-0.20220716000719-d9dfb9473afa
 ## explicit
 github.com/containerd/containerd
 github.com/containerd/containerd/api/events
@@ -716,5 +716,5 @@ k8s.io/utils/integer
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
-# github.com/containerd/containerd => ../containerd
+# github.com/containerd/containerd => dev.azure.com/msazure/ContainerPlatform/_git/containerd.containerd.git v1.2.1-0.20220716000719-d9dfb9473afa
 # google.golang.org/genproto => google.golang.org/genproto v0.0.0-20200224152610-e50cd9704f63
