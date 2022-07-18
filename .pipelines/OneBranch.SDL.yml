@@ -13,6 +13,7 @@ variables:
   WindowsContainerImage: cdpxwin1809.azurecr.io/global/vse2019:latest
   LGTM.UploadSnapshot: true
   DisableDockerDetector: true
+  DisableGoCliScan: true
 
 resources:
   repositories:
